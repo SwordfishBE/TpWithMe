@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.tpwithme.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EntityTeleportMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

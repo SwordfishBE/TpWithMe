@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "tpwithme",
+  "version": "${version}",
+  "name": "TpWithMe",
+  "description": "Your mount teleports with you!",
+  "authors": [
+    "SwordfishBE"
+  ],
+  "contact": {
+    "homepage": "https://github.com/SwordfishBE/TpWithMe",
+    "sources": "https://github.com/SwordfishBE/TpWithMe",
+    "issues": "https://github.com/SwordfishBE/TpWithMe/issues",
+	"email": "swordfishbe@locutus.net"
+  },
+  "license": "AGPL-3.0",
+  "icon": "assets/tpwithme/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.tpwithme.TpWithMe"
+    ]
+  },
+  "mixins": [
+    "tpwithme.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21"
+  }
+}
