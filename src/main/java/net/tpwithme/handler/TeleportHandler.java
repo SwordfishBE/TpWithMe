@@ -124,11 +124,20 @@ public final class TeleportHandler {
         }
 
         // Safety check – done HERE after the player arrived so chunks are loaded.
-        // noCollision() is only reliable on loaded chunks.
-        if (TpWithMeConfig.get().checkSafety && !SafetyChecker.isSafe(vehicle, targetLevel, targetPos)) {
-            player.sendSystemMessage(Component.literal(
-                    "[TpWithMe] Not enough space at destination – your mount stayed behind."));
-            return;
+        // If the exact position is blocked, search nearby for a safe spot.
+        Vec3 mountPos = targetPos;
+        if (TpWithMeConfig.get().checkSafety) {
+            int radius = TpWithMeConfig.get().safetySearchRadius;
+            mountPos = SafetyChecker.findSafePosition(vehicle, targetLevel, targetPos, radius);
+            if (mountPos == null) {
+                player.sendSystemMessage(Component.literal(
+                        "[TpWithMe] Not enough space at destination – your mount stayed behind."));
+                return;
+            }
+            if (!mountPos.equals(targetPos)) {
+                player.sendSystemMessage(Component.literal(
+                        "[TpWithMe] Mount adjusted to a nearby safe position."));
+            }
         }
 
         UUID vehicleId = vehicle.getUUID();
@@ -141,7 +150,7 @@ public final class TeleportHandler {
 
             TeleportTransition transition = new TeleportTransition(
                     targetLevel,
-                    targetPos,
+                    mountPos,
                     Vec3.ZERO,
                     player.getYRot(),
                     0.0f,

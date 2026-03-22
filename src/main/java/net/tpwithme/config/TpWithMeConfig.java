@@ -55,6 +55,14 @@ public class TpWithMeConfig {
     public int protectionDurationTicks = 60;
 
     /**
+     * When checkSafety is true and the exact destination is blocked, search
+     * nearby positions within this radius (in blocks) for a safe spot.
+     * 0 = exact position only (old behaviour).
+     * Default: 2.
+     */
+    public int safetySearchRadius = 2;
+
+    /**
      * Entity type IDs that must NEVER be teleported.
      * Use namespaced IDs: "minecraft:horse", "mymod:custom_mount", etc.
      */

@@ -61,6 +61,7 @@ Created automatically on first launch. Use `/tpwithme reload` to apply changes w
   "checkSafety": true,
   "applyTeleportProtection": true,
   "protectionDurationTicks": 60,
+  "safetySearchRadius": 2,
   "blacklistedEntities": []
 }
 ```
@@ -98,6 +99,14 @@ Default: `true`
 #### `protectionDurationTicks`
 Duration of the post-teleport damage immunity in game ticks (20 ticks = 1 second).  
 Default: `60` (3 seconds)
+
+#### `safetySearchRadius`
+When `checkSafety` is `true` and the exact destination is blocked, the mod searches for a safe nearby position within this radius (in blocks).
+
+Search priority: Y upward first (most natural), then X/Z horizontal offsets, then Y downward.
+
+Set to `0` to disable the search and only check the exact destination.  
+Default: `2`
 
 #### `blacklistedEntities`
 A list of entity type IDs that must **never** teleport, regardless of other settings.  
