@@ -147,6 +147,8 @@ If another mod forcibly dismounts the player *before* TpWithMe's HEAD injection,
 3. Download `tpwithme-<version>.jar` and place it in `mods/`.
 4. Launch Minecraft. The config is created automatically on first run.
 
+Download from [GitHub](https://github.com/SwordfishBE/TpWithMe/releases), [Modrinth](https://modrinth.com/mod/tpwithme) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/tpwithme).
+
 ---
 
 ## 🧱 Building from Source
