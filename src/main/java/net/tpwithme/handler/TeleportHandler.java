@@ -27,7 +27,7 @@ import java.util.*;
  * Central handler: captures the player's mount before a teleport and
  * re-teleports + remounts it afterwards.
  *
- * Confirmed package locations for 1.21.11 (Mounts of Mayhem):
+ * Confirmed package locations for 26.1:
  *   AbstractHorse / Llama / TraderLlama : net.minecraft.world.entity.animal.equine
  *   Camel / CamelHusk                  : net.minecraft.world.entity.animal.camel
  *   Pig                                : net.minecraft.world.entity.animal.pig
@@ -202,7 +202,7 @@ public final class TeleportHandler {
     }
 
     /**
-     * Saddle check using proper instanceof casts with confirmed 1.21.11 packages.
+     * Saddle check using proper instanceof casts with confirmed 26.1 packages.
      *
      * - Llama / TraderLlama      : always true (lead-controlled, no saddle)
      * - AbstractHorse family
@@ -223,7 +223,7 @@ public final class TeleportHandler {
         }
 
         // AbstractHorse covers: Horse, Donkey, Mule, SkeletonHorse, ZombieHorse
-        // Camel and CamelHusk also extend AbstractHorse in 1.21.11
+        // Camel and CamelHusk also extend AbstractHorse in 26.1
         if (entity instanceof AbstractHorse horse) {
             return horse.isSaddled();
         }

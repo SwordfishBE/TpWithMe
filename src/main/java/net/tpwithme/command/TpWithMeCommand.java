@@ -23,7 +23,7 @@ public final class TpWithMeCommand {
                         .then(Commands.literal("info")
                                 .executes(TpWithMeCommand::executeInfo))
                         .then(Commands.literal("reload")
-                                // 1.21.11: permission system uses PermissionCheck objects.
+                                // 26.1: permission system uses PermissionCheck objects.
                                 // Commands.hasPermission() returns a Predicate<CommandSourceStack>.
                                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                                 .executes(TpWithMeCommand::executeReload))
