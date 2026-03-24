@@ -161,6 +161,8 @@ chmod +x gradlew
 # Output: build/libs/tpwithme-<version>.jar
 ```
 
+**Requirements:** JAVA JDK 25, Gradle 9.4
+
 ---
 
 ## 📄 License
