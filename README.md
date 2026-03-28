@@ -85,6 +85,7 @@ If `true` and LuckPerms is present, TpWithMe checks:
 - `tpwithme.use`
 - `tpwithme.crossdimensionalteleport`
 
+When LuckPerms is active, players must be explicitly granted these permissions.  
 If LuckPerms is not installed, TpWithMe automatically falls back to allowing everyone to use the mod.  
 Default: `false`
 
@@ -139,6 +140,7 @@ TpWithMe only uses LuckPerms when both conditions are true:
 2. The `luckperms` mod is actually installed on the server
 
 If either condition is false, everyone can use TpWithMe and no permission plugin is required.
+If LuckPerms is active, missing permission nodes default to `false`.
 
 ### Permission nodes
 

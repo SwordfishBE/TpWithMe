@@ -39,10 +39,10 @@ public final class PermissionManager {
     }
 
     public static boolean canUse(ServerPlayer player) {
-        return !luckPermsActive || Permissions.check(player, USE_PERMISSION, true);
+        return !luckPermsActive || Permissions.check(player, USE_PERMISSION, false);
     }
 
     public static boolean canCrossDimensionalTeleport(ServerPlayer player) {
-        return !luckPermsActive || Permissions.check(player, CROSS_DIMENSIONAL_TELEPORT_PERMISSION, true);
+        return !luckPermsActive || Permissions.check(player, CROSS_DIMENSIONAL_TELEPORT_PERMISSION, false);
     }
 }
