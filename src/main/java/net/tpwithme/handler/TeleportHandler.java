@@ -19,6 +19,7 @@ import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.TpWithMe;
 import net.tpwithme.config.TpWithMeConfig;
+import net.tpwithme.permission.PermissionManager;
 import net.tpwithme.util.SafetyChecker;
 
 import java.util.*;
@@ -72,7 +73,7 @@ public final class TeleportHandler {
 
     /**
      * Called at HEAD of player's teleport.
-     * Only checks eligibility (supported type, blacklist, saddle, cross-dim).
+     * Only checks eligibility (supported type, blacklist, saddle, permissions, cross-dim).
      * Safety and border checks are done in onPostTeleport AFTER the player
      * arrives, because destination chunks are not yet loaded at HEAD time.
      */
@@ -96,11 +97,22 @@ public final class TeleportHandler {
             return;
         }
 
+        if (!PermissionManager.canUse(player)) {
+            TpWithMe.LOGGER.info("[TpWithMe] {} lacks permission {} – skipping.",
+                    player.getName().getString(), PermissionManager.USE_PERMISSION);
+            return;
+        }
+
         // Cross-dimensional check (no chunk loading needed)
         boolean crossDim = vehicle.level() != targetLevel;
         if (crossDim && !TpWithMeConfig.get().crossDimensionalTeleport) {
             player.sendSystemMessage(Component.literal(
                     "[TpWithMe] Cross-dimensional mount teleport is disabled in the config."));
+            return;
+        }
+        if (crossDim && !PermissionManager.canCrossDimensionalTeleport(player)) {
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] You don't have permission to take your mount across dimensions."));
             return;
         }
 

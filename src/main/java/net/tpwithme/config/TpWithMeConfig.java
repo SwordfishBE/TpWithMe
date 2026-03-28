@@ -26,6 +26,12 @@ public class TpWithMeConfig {
     public boolean enabled = true;
 
     /**
+     * Enable LuckPerms-backed permission checks when the mod is installed.
+     * If false, TpWithMe ignores LuckPerms entirely.
+     */
+    public boolean useLuckPerms = false;
+
+    /**
      * Allow cross-dimensional teleports (Overworld ↔ Nether ↔ End).
      * When false, only same-dimension teleports carry the mount.
      */

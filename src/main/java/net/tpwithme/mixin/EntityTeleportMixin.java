@@ -14,13 +14,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Mixin on ServerPlayer#teleport(TeleportTransition).
  *
- * HEAD  → safety check + capture vehicle BEFORE the teleport.
- *         We have access to TeleportTransition here, which contains the
- *         destination level and position. This is the correct place to
- *         block unsafe teleports before the player moves.
+ * HEAD   → capture the current vehicle and perform cheap eligibility checks.
  *
- * RETURN → teleport the vehicle to the player's new position and remount.
- *          No safety check needed here — already done in HEAD.
+ * RETURN → teleport the vehicle to the player's new position, run safety checks
+ *          once the destination chunks are available, then remount.
  */
 @Mixin(ServerPlayer.class)
 public class EntityTeleportMixin {
@@ -38,8 +35,6 @@ public class EntityTeleportMixin {
                 player.getName().getString(),
                 player.getVehicle() != null ? player.getVehicle().getType().toShortString() : "none");
 
-        // Pass the transition so onPreTeleport can safety-check the destination
-        // BEFORE the player moves.
         ServerLevel targetLevel = transition.newLevel();
         TeleportHandler.onPreTeleport(player, targetLevel, transition.position());
     }

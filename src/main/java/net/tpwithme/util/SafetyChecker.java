@@ -29,12 +29,6 @@ public final class SafetyChecker {
 
     private static final double RIDER_CLEARANCE = 2.0;
 
-    /**
-     * Maximum search radius in blocks when looking for a nearby safe spot.
-     * Controlled by config, default 2.
-     */
-    public static final int DEFAULT_SEARCH_RADIUS = 2;
-
     // ─── Public API ───────────────────────────────────────────────────────────
 
     /**

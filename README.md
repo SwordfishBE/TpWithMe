@@ -1,5 +1,10 @@
 # TpWithMe – Teleport With Me
 
+[![GitHub Release](https://img.shields.io/github/v/release/SwordfishBE/TpWithMe?style=for-the-badge&logo=github)](https://github.com/SwordfishBE/TpWithMe/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/SwordfishBE/TpWithMe/total?style=for-the-badge&logo=github)](https://github.com/SwordfishBE/TpWithMe/releases)
+[![Modrinth Downloads](https://img.shields.io/modrinth/dt/wc6Vjaxn?style=for-the-badge&logo=modrinth&label=modrinth%20downloads)](https://modrinth.com/mod/tpwithme)
+[![CurseForge Downloads](https://img.shields.io/curseforge/dt/1492770?style=for-the-badge&logo=curseforge&label=curseforge%20downloads)](https://www.curseforge.com/minecraft/mc-mods/tpwithme)
+
 Your mount follows you through every teleport — commands, plugins, portals, you name it. Stay seated, arrive together.
 
 ---
@@ -43,7 +48,7 @@ All 14 vanilla rideable entities:
 
 | Command | Permission | Description |
 |---|---|---|
-| `/tpwithme info` | Everyone | Show current config values in chat |
+| `/tpwithme info` | Operator (gamemaster) | Show current config values in chat |
 | `/tpwithme reload` | Operator (gamemaster) | Reload `tpwithme.json` from disk |
 
 ---
@@ -56,6 +61,7 @@ Created automatically on first launch. Use `/tpwithme reload` to apply changes w
 ```json
 {
   "enabled": true,
+  "useLuckPerms": false,
   "crossDimensionalTeleport": true,
   "requireSaddle": true,
   "checkSafety": true,
@@ -71,6 +77,16 @@ Created automatically on first launch. Use `/tpwithme reload` to apply changes w
 #### `enabled`
 Master switch. Set to `false` to disable the mod entirely without removing it.  
 Default: `true`
+
+#### `useLuckPerms`
+Enable LuckPerms permission checks when the `luckperms` mod is installed.
+
+If `true` and LuckPerms is present, TpWithMe checks:
+- `tpwithme.use`
+- `tpwithme.crossdimensionalteleport`
+
+If LuckPerms is not installed, TpWithMe automatically falls back to allowing everyone to use the mod.  
+Default: `false`
 
 #### `crossDimensionalTeleport`
 Allow mounts to follow through dimension changes (Overworld ↔ Nether ↔ End).  
@@ -115,11 +131,59 @@ Default: `[]` (empty)
 
 ---
 
+## 🔐 LuckPerms
+
+TpWithMe only uses LuckPerms when both conditions are true:
+
+1. `useLuckPerms` is set to `true` in `config/tpwithme.json`
+2. The `luckperms` mod is actually installed on the server
+
+If either condition is false, everyone can use TpWithMe and no permission plugin is required.
+
+### Permission nodes
+
+| Permission | Description |
+|---|---|
+| `tpwithme.use` | Allow a player to take their mount along during teleports |
+| `tpwithme.crossdimensionalteleport` | Allow a player to take their mount across dimensions |
+
+### Example groups
+
+```yaml
+group.default:
+  permissions:
+    - tpwithme.use
+
+group.vip:
+  permissions:
+    - tpwithme.use
+    - tpwithme.crossdimensionalteleport
+```
+
+### Example commands
+
+```bash
+/lp group default permission set tpwithme.use true
+/lp group default permission set tpwithme.crossdimensionalteleport false
+
+/lp group vip permission set tpwithme.use true
+/lp group vip permission set tpwithme.crossdimensionalteleport true
+```
+
+### `/tpwithme info`
+
+`/tpwithme info` now also shows whether LuckPerms is:
+- `disabled`
+- `configured, but mod not installed`
+- `active`
+
+---
+
 ## 🔨 How It Works
 
 TpWithMe uses a Mixin on `ServerPlayer#teleport(TeleportTransition)`:
 
-1. **HEAD injection** — before the player teleports, the current vehicle is captured and eligibility is checked (saddle, blacklist, cross-dim flag).
+1. **HEAD injection** — before the player teleports, the current vehicle is captured and eligibility is checked (saddle, blacklist, LuckPerms permission, cross-dim flag).
 2. The player teleports normally (Minecraft handles dismounting and moving the player).
 3. **RETURN injection** — after the player arrives, destination chunks are now loaded. The safety check runs against actual block collision shapes. If safe, the vehicle is teleported to the player's new position and `startRiding()` is called.
 4. **RemountWatcher** — 3 ticks later, a tick listener verifies the player is still mounted. If Minecraft forced a dismount (rare edge case), the vehicle is moved to the player and remount is attempted again.
@@ -144,10 +208,15 @@ If another mod forcibly dismounts the player *before* TpWithMe's HEAD injection,
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft.
 2. Download [Fabric API](https://modrinth.com/mod/fabric-api) and place it in `mods/`.
-3. Download `tpwithme-<version>.jar` and place it in `mods/`.
-4. Launch Minecraft. The config is created automatically on first run.
+3. Download `tpwithme-<version>.jar` from one of the platforms below and place it in `mods/`.
+4. Optional: install [LuckPerms](https://modrinth.com/mod/luckperms) if you want permission-based access control.
+5. Launch Minecraft. The config is created automatically on first run.
 
-Download from [GitHub](https://github.com/SwordfishBE/TpWithMe/releases), [Modrinth](https://modrinth.com/mod/tpwithme) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/tpwithme).
+### Downloads
+
+- [GitHub Releases](https://github.com/SwordfishBE/TpWithMe/releases)
+- [Modrinth](https://modrinth.com/mod/tpwithme)
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/tpwithme)
 
 ---
 

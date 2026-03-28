@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.tpwithme.command.TpWithMeCommand;
 import net.tpwithme.config.TpWithMeConfig;
 import net.tpwithme.handler.RemountWatcher;
+import net.tpwithme.permission.PermissionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +17,7 @@ public class TpWithMe implements ModInitializer {
     @Override
     public void onInitialize() {
         TpWithMeConfig.load();
+        PermissionManager.refreshState();
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 TpWithMeCommand.register(dispatcher));
