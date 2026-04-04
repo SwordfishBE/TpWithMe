@@ -77,31 +77,80 @@ public class TpWithMeConfig {
     }
 
     public static void load() {
+        instance = loadForEditing();
+        save();
+        TpWithMe.LOGGER.info("[TpWithMe] Config loaded.");
+    }
+
+    public static TpWithMeConfig loadForEditing() {
+        TpWithMeConfig loadedConfig = new TpWithMeConfig();
+
         if (Files.exists(CONFIG_PATH)) {
             try {
                 String rawConfig = Files.readString(CONFIG_PATH);
                 String json = stripJsonComments(rawConfig);
                 TpWithMeConfig loaded = GSON.fromJson(json, TpWithMeConfig.class);
-                if (loaded != null) instance = loaded;
-                if (instance.blacklistedEntities == null) instance.blacklistedEntities = new ArrayList<>();
+                if (loaded != null) loadedConfig = loaded;
             } catch (IOException e) {
                 TpWithMe.LOGGER.error("[TpWithMe] Failed to read config, using defaults.", e);
-                instance = new TpWithMeConfig();
             } catch (Exception e) {
                 TpWithMe.LOGGER.error("[TpWithMe] Failed to parse config, using defaults.", e);
-                instance = new TpWithMeConfig();
             }
         }
+
+        loadedConfig.normalize();
+        return loadedConfig;
+    }
+
+    public static void applyEditedConfig(TpWithMeConfig editedConfig) {
+        TpWithMeConfig normalized = editedConfig == null ? new TpWithMeConfig() : editedConfig.copy();
+        normalized.normalize();
+        instance = normalized;
         save();
-        TpWithMe.LOGGER.info("[TpWithMe] Config loaded.");
     }
 
     public static void save() {
         try {
+            Files.createDirectories(CONFIG_PATH.getParent());
             Files.writeString(CONFIG_PATH, toCommentedJson(instance));
         } catch (IOException e) {
             TpWithMe.LOGGER.error("[TpWithMe] Failed to save config.", e);
         }
+    }
+
+    public TpWithMeConfig copy() {
+        TpWithMeConfig copy = new TpWithMeConfig();
+        copy.enabled = enabled;
+        copy.useLuckPerms = useLuckPerms;
+        copy.crossDimensionalTeleport = crossDimensionalTeleport;
+        copy.requireSaddle = requireSaddle;
+        copy.checkSafety = checkSafety;
+        copy.applyTeleportProtection = applyTeleportProtection;
+        copy.protectionDurationTicks = protectionDurationTicks;
+        copy.safetySearchRadius = safetySearchRadius;
+        copy.blacklistedEntities = blacklistedEntities == null ? new ArrayList<>() : new ArrayList<>(blacklistedEntities);
+        return copy;
+    }
+
+    public void normalize() {
+        if (protectionDurationTicks < 0) {
+            protectionDurationTicks = 0;
+        }
+
+        if (safetySearchRadius < 0) {
+            safetySearchRadius = 0;
+        }
+
+        if (blacklistedEntities == null) {
+            blacklistedEntities = new ArrayList<>();
+            return;
+        }
+
+        blacklistedEntities = blacklistedEntities.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
     private static String toCommentedJson(TpWithMeConfig config) {

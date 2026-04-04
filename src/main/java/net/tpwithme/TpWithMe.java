@@ -29,4 +29,13 @@ public class TpWithMe implements ModInitializer {
 
         LOGGER.info("[TpWithMe] Initialized – your mount will follow you anywhere!");
     }
+
+    public static TpWithMeConfig loadConfigForEditing() {
+        return TpWithMeConfig.loadForEditing();
+    }
+
+    public static void applyEditedConfig(TpWithMeConfig editedConfig) {
+        TpWithMeConfig.applyEditedConfig(editedConfig);
+        PermissionManager.refreshState();
+    }
 }

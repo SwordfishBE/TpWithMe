@@ -18,6 +18,7 @@ Your mount follows you through every teleport — commands, plugins, portals, yo
 - 🛡️ Damage resistance applied to mount during transition to prevent death
 - 🚫 Entity blacklist — exclude specific mounts from ever teleporting
 - 🔁 Post-teleport remount watcher — catches edge-case dismounts and fixes them automatically
+- ⚙️ Optional Mod Menu + Cloth Config support for an in-game client config screen
 
 ---
 
@@ -57,6 +58,10 @@ All 14 vanilla rideable entities:
 
 File: `config/tpwithme.json`  
 Created automatically on first launch. Use `/tpwithme reload` to apply changes without restarting.
+
+If [Mod Menu](https://modrinth.com/mod/modmenu) is installed on the client, TpWithMe exposes a config screen there.
+If [Cloth Config](https://modrinth.com/mod/cloth-config) is also installed, that screen is fully editable in-game.
+Both dependencies are optional and are not required on dedicated servers.
 
 ```json
 {
@@ -212,7 +217,9 @@ If another mod forcibly dismounts the player *before* TpWithMe's HEAD injection,
 2. Download [Fabric API](https://modrinth.com/mod/fabric-api) and place it in `mods/`.
 3. Download `tpwithme-<version>.jar` from one of the platforms below and place it in `mods/`.
 4. Optional: install [LuckPerms](https://modrinth.com/mod/luckperms) if you want permission-based access control.
-5. Launch Minecraft. The config is created automatically on first run.
+5. Optional: install [Mod Menu](https://modrinth.com/mod/modmenu) to access TpWithMe from the mods list.
+6. Optional: install [Cloth Config](https://modrinth.com/mod/cloth-config) if you want the in-game config GUI.
+7. Launch Minecraft. The config is created automatically on first run.
 
 ### Downloads
 
