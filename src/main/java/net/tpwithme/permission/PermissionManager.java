@@ -22,16 +22,17 @@ public final class PermissionManager {
         luckPermsActive = TpWithMeConfig.get().useLuckPerms && luckPermsInstalled;
 
         if (luckPermsActive) {
-            TpWithMe.LOGGER.info("[TpWithMe] LuckPerms permissions are active.");
+            TpWithMe.LOGGER.debug("{} LuckPerms permissions are active.", TpWithMe.prefix());
             return;
         }
 
         if (TpWithMeConfig.get().useLuckPerms) {
-            TpWithMe.LOGGER.warn("[TpWithMe] useLuckPerms is enabled, but LuckPerms is not installed. Everyone can use TpWithMe.");
+            TpWithMe.LOGGER.warn("{} useLuckPerms is enabled, but LuckPerms is not installed. Everyone can use TpWithMe.",
+                    TpWithMe.prefix());
             return;
         }
 
-        TpWithMe.LOGGER.info("[TpWithMe] LuckPerms integration is disabled in the config.");
+        TpWithMe.LOGGER.debug("{} LuckPerms integration is disabled in the config.", TpWithMe.prefix());
     }
 
     public static boolean isLuckPermsActive() {

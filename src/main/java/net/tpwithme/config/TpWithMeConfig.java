@@ -79,7 +79,7 @@ public class TpWithMeConfig {
     public static void load() {
         instance = loadForEditing();
         save();
-        TpWithMe.LOGGER.info("[TpWithMe] Config loaded.");
+        TpWithMe.LOGGER.debug("{} Config loaded.", TpWithMe.prefix());
     }
 
     public static TpWithMeConfig loadForEditing() {
@@ -90,11 +90,13 @@ public class TpWithMeConfig {
                 String rawConfig = Files.readString(CONFIG_PATH);
                 String json = stripJsonComments(rawConfig);
                 TpWithMeConfig loaded = GSON.fromJson(json, TpWithMeConfig.class);
-                if (loaded != null) loadedConfig = loaded;
+                if (loaded != null) {
+                    loadedConfig = loaded;
+                }
             } catch (IOException e) {
-                TpWithMe.LOGGER.error("[TpWithMe] Failed to read config, using defaults.", e);
+                TpWithMe.LOGGER.error("{} Failed to read config, using defaults.", TpWithMe.prefix(), e);
             } catch (Exception e) {
-                TpWithMe.LOGGER.error("[TpWithMe] Failed to parse config, using defaults.", e);
+                TpWithMe.LOGGER.error("{} Failed to parse config, using defaults.", TpWithMe.prefix(), e);
             }
         }
 
@@ -114,7 +116,7 @@ public class TpWithMeConfig {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.writeString(CONFIG_PATH, toCommentedJson(instance));
         } catch (IOException e) {
-            TpWithMe.LOGGER.error("[TpWithMe] Failed to save config.", e);
+            TpWithMe.LOGGER.error("{} Failed to save config.", TpWithMe.prefix(), e);
         }
     }
 

@@ -72,13 +72,15 @@ public final class RemountWatcher {
             Entity vehicle = level.getEntity(check.vehicleId());
 
             if (vehicle == null) {
-                TpWithMe.LOGGER.warn("[TpWithMe] RemountWatcher: vehicle {} not found in {}.",
+                TpWithMe.LOGGER.warn("{} RemountWatcher: vehicle {} not found in {}.",
+                        TpWithMe.prefix(),
                         check.vehicleId(), level.dimension());
                 continue;
             }
 
-            TpWithMe.LOGGER.info("[TpWithMe] RemountWatcher: player {} was dismounted – " +
-                    "moving vehicle to player and remounting.", player.getName().getString());
+            TpWithMe.LOGGER.debug("{} RemountWatcher: player {} was dismounted; " +
+                    "moving vehicle to player and remounting.",
+                    TpWithMe.prefix(), player.getName().getString());
 
             // Teleport vehicle to player's current position
             Vec3 playerPos = player.position();
@@ -96,10 +98,10 @@ public final class RemountWatcher {
             if (newVehicle != null) {
                 boolean success = player.startRiding(newVehicle, true, false);
                 if (success) {
-                    TpWithMe.LOGGER.info("[TpWithMe] RemountWatcher: remount successful.");
+                    TpWithMe.LOGGER.debug("{} RemountWatcher: remount successful.", TpWithMe.prefix());
                 } else {
-                    TpWithMe.LOGGER.warn("[TpWithMe] RemountWatcher: remount failed – " +
-                            "vehicle is at player position but player is not riding.");
+                    TpWithMe.LOGGER.warn("{} RemountWatcher: remount failed; " +
+                            "vehicle is at player position but player is not riding.", TpWithMe.prefix());
                 }
             }
         }

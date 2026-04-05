@@ -31,7 +31,8 @@ public class EntityTeleportMixin {
             CallbackInfoReturnable<ServerPlayer> cir
     ) {
         ServerPlayer player = (ServerPlayer) (Object) this;
-        TpWithMe.LOGGER.debug("[TpWithMe] HEAD: teleport() called for player {}, vehicle={}",
+        TpWithMe.LOGGER.debug("{} HEAD: teleport() called for player {}, vehicle={}",
+                TpWithMe.prefix(),
                 player.getName().getString(),
                 player.getVehicle() != null ? player.getVehicle().getType().toShortString() : "none");
 
@@ -51,13 +52,15 @@ public class EntityTeleportMixin {
 
         if (returned == null) {
             ServerPlayer self = (ServerPlayer) (Object) this;
-            TpWithMe.LOGGER.debug("[TpWithMe] RETURN: null – cancelling pending for {}",
+            TpWithMe.LOGGER.debug("{} RETURN: null; cancelling pending for {}",
+                    TpWithMe.prefix(),
                     self.getName().getString());
             TeleportHandler.cancelPending(self.getUUID());
             return;
         }
 
-        TpWithMe.LOGGER.debug("[TpWithMe] RETURN: teleport() finished for player {}",
+        TpWithMe.LOGGER.debug("{} RETURN: teleport() finished for player {}",
+                TpWithMe.prefix(),
                 returned.getName().getString());
 
         ServerLevel newLevel = (ServerLevel) returned.level();

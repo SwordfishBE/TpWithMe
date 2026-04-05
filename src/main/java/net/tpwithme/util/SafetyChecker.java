@@ -66,7 +66,8 @@ public final class SafetyChecker {
         for (int dy = 1; dy <= searchRadius; dy++) {
             Vec3 candidate = targetPos.add(0, dy, 0);
             if (isSafe(vehicle, level, candidate)) {
-                TpWithMe.LOGGER.info("[TpWithMe] SafetyCheck: adjusted position +Y{} to {}",
+                TpWithMe.LOGGER.debug("{} SafetyCheck: adjusted position +Y{} to {}",
+                        TpWithMe.prefix(),
                         dy, candidate);
                 return candidate;
             }
@@ -83,9 +84,9 @@ public final class SafetyChecker {
                         if (dx == 0 && dz == 0 && yOffset == 0) continue; // already tried
                         Vec3 candidate = targetPos.add(dx, yOffset, dz);
                         if (isSafe(vehicle, level, candidate)) {
-                            TpWithMe.LOGGER.info(
-                                    "[TpWithMe] SafetyCheck: adjusted position [{},{},{}] to {}",
-                                    dx, yOffset, dz, candidate);
+                            TpWithMe.LOGGER.debug(
+                                    "{} SafetyCheck: adjusted position [{},{},{}] to {}",
+                                    TpWithMe.prefix(), dx, yOffset, dz, candidate);
                             return candidate;
                         }
                     }
@@ -120,8 +121,8 @@ public final class SafetyChecker {
                     BlockState state = level.getBlockState(bp);
                     if (!state.getCollisionShape(level, bp).isEmpty()) {
                         TpWithMe.LOGGER.debug(
-                                "[TpWithMe] SafetyCheck: blocked by {} at [{},{},{}]",
-                                state.getBlock(), x, y, z);
+                                "{} SafetyCheck: blocked by {} at [{},{},{}]",
+                                TpWithMe.prefix(), state.getBlock(), x, y, z);
                         return bp;
                     }
                 }

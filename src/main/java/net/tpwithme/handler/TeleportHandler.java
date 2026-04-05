@@ -86,19 +86,22 @@ public final class TeleportHandler {
         if (!isSupportedType(vehicle)) return;
 
         if (isBlacklisted(vehicle)) {
-            TpWithMe.LOGGER.info("[TpWithMe] {} is blacklisted – skipping.",
+            TpWithMe.LOGGER.debug("{} {} is blacklisted; skipping.",
+                    TpWithMe.prefix(),
                     vehicle.getType().toShortString());
             return;
         }
 
         if (TpWithMeConfig.get().requireSaddle && !hasSaddle(vehicle)) {
-            TpWithMe.LOGGER.info("[TpWithMe] {} has no saddle – skipping.",
+            TpWithMe.LOGGER.debug("{} {} has no saddle; skipping.",
+                    TpWithMe.prefix(),
                     vehicle.getType().toShortString());
             return;
         }
 
         if (!PermissionManager.canUse(player)) {
-            TpWithMe.LOGGER.info("[TpWithMe] {} lacks permission {} – skipping.",
+            TpWithMe.LOGGER.debug("{} {} lacks permission {}; skipping.",
+                    TpWithMe.prefix(),
                     player.getName().getString(), PermissionManager.USE_PERMISSION);
             return;
         }
@@ -117,7 +120,8 @@ public final class TeleportHandler {
         }
 
         pendingTeleports.put(player.getUUID(), new PendingData(vehicle));
-        TpWithMe.LOGGER.info("[TpWithMe] Pre-teleport: captured {} for player {}.",
+        TpWithMe.LOGGER.debug("{} Pre-teleport: captured {} for player {}.",
+                TpWithMe.prefix(),
                 vehicle.getType().toShortString(), player.getName().getString());
     }
 
@@ -173,7 +177,8 @@ public final class TeleportHandler {
             Entity newVehicle = vehicle.teleport(transition);
 
             if (newVehicle == null) {
-                TpWithMe.LOGGER.warn("[TpWithMe] teleport() returned null for {}.",
+                TpWithMe.LOGGER.warn("{} teleport() returned null for {}.",
+                        TpWithMe.prefix(),
                         vehicle.getType().toShortString());
                 return;
             }
@@ -181,10 +186,12 @@ public final class TeleportHandler {
             // startRiding(Entity, boolean force, boolean cancelEvent)
             boolean success = player.startRiding(newVehicle, true, false);
             if (!success) {
-                TpWithMe.LOGGER.warn("[TpWithMe] Could not remount player on {}.",
+                TpWithMe.LOGGER.warn("{} Could not remount player on {}.",
+                        TpWithMe.prefix(),
                         newVehicle.getType().toShortString());
             } else {
-                TpWithMe.LOGGER.info("[TpWithMe] Player {} remounted {}.",
+                TpWithMe.LOGGER.debug("{} Player {} remounted {}.",
+                        TpWithMe.prefix(),
                         player.getName().getString(), newVehicle.getType().toShortString());
                 // Schedule a check a few ticks later to catch post-teleport dismounts
                 // (e.g. Minecraft forces a dismount on the next tick due to block collision).

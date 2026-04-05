@@ -60,8 +60,7 @@ public final class TpWithMeCommand {
         PermissionManager.refreshState();
         ctx.getSource().sendSuccess(() ->
                 Component.literal("§a[TpWithMe] Config reloaded successfully."), true);
-        TpWithMe.LOGGER.info("[TpWithMe] Config reloaded by {}.",
-                ctx.getSource().getTextName());
+        TpWithMe.LOGGER.info("{} Config reloaded via command.", TpWithMe.prefix());
         return 1;
     }
 }
