@@ -78,51 +78,82 @@ public final class TeleportHandler {
      * arrives, because destination chunks are not yet loaded at HEAD time.
      */
     public static void onPreTeleport(ServerPlayer player, ServerLevel targetLevel, Vec3 targetPos) {
-        if (!TpWithMeConfig.get().enabled) return;
-
-        Entity vehicle = player.getVehicle();
+        Entity vehicle = getEligibleVehicle(player, targetLevel);
         if (vehicle == null) return;
-        if (currentlyTeleporting.contains(vehicle.getUUID())) return;
-        if (!isSupportedType(vehicle)) return;
-
-        if (isBlacklisted(vehicle)) {
-            TpWithMe.LOGGER.debug("{} {} is blacklisted; skipping.",
-                    TpWithMe.prefix(),
-                    vehicle.getType().toShortString());
-            return;
-        }
-
-        if (TpWithMeConfig.get().requireSaddle && !hasSaddle(vehicle)) {
-            TpWithMe.LOGGER.debug("{} {} has no saddle; skipping.",
-                    TpWithMe.prefix(),
-                    vehicle.getType().toShortString());
-            return;
-        }
-
-        if (!PermissionManager.canUse(player)) {
-            TpWithMe.LOGGER.debug("{} {} lacks permission {}; skipping.",
-                    TpWithMe.prefix(),
-                    player.getName().getString(), PermissionManager.USE_PERMISSION);
-            return;
-        }
-
-        // Cross-dimensional check (no chunk loading needed)
-        boolean crossDim = vehicle.level() != targetLevel;
-        if (crossDim && !TpWithMeConfig.get().crossDimensionalTeleport) {
-            player.sendSystemMessage(Component.literal(
-                    "[TpWithMe] Cross-dimensional mount teleport is disabled in the config."));
-            return;
-        }
-        if (crossDim && !PermissionManager.canCrossDimensionalTeleport(player)) {
-            player.sendSystemMessage(Component.literal(
-                    "[TpWithMe] You don't have permission to take your mount across dimensions."));
-            return;
-        }
 
         pendingTeleports.put(player.getUUID(), new PendingData(vehicle));
         TpWithMe.LOGGER.debug("{} Pre-teleport: captured {} for player {}.",
                 TpWithMe.prefix(),
                 vehicle.getType().toShortString(), player.getName().getString());
+    }
+
+    public static ServerPlayer handleMountedPearlTeleport(ServerPlayer player, TeleportTransition original) {
+        if (!TpWithMeConfig.get().enderPearlTeleport) {
+            return player.teleport(original);
+        }
+
+        if (!PermissionManager.canEnderPearlTeleport(player)) {
+            return player.teleport(original);
+        }
+
+        Entity vehicle = getEligibleVehicle(player, original.newLevel());
+        if (vehicle == null) {
+            return player.teleport(original);
+        }
+
+        Vec3 mountPos = original.position();
+        if (TpWithMeConfig.get().checkSafety) {
+            int radius = TpWithMeConfig.get().safetySearchRadius;
+            mountPos = SafetyChecker.findSafePosition(vehicle, original.newLevel(), original.position(), radius);
+            if (mountPos == null) {
+                player.sendSystemMessage(Component.literal(
+                        "[TpWithMe] Not enough space at pearl landing for you and your mount."));
+                return null;
+            }
+
+            if (!mountPos.equals(original.position())) {
+                player.sendSystemMessage(Component.literal(
+                        "[TpWithMe] Pearl landing adjusted to a nearby safe position."));
+            }
+        }
+
+        UUID vehicleId = vehicle.getUUID();
+        currentlyTeleporting.add(vehicleId);
+
+        try {
+            if (TpWithMeConfig.get().applyTeleportProtection) {
+                applyProtection(vehicle, TpWithMeConfig.get().protectionDurationTicks);
+            }
+
+            TeleportTransition vehicleTransition = new TeleportTransition(
+                    original.newLevel(),
+                    mountPos,
+                    vehicle.getDeltaMovement(),
+                    vehicle.getYRot(),
+                    vehicle.getXRot(),
+                    Set.of(),
+                    TeleportTransition.DO_NOTHING
+            );
+
+            Entity newVehicle = vehicle.teleport(vehicleTransition);
+            if (newVehicle == null) {
+                TpWithMe.LOGGER.warn("{} Mounted pearl teleport returned null for {}.",
+                        TpWithMe.prefix(),
+                        vehicle.getType().toShortString());
+                return null;
+            }
+
+            if (player.getVehicle() == null) {
+                TpWithMe.LOGGER.warn("{} Mounted pearl teleport left player {} dismounted from {}.",
+                        TpWithMe.prefix(),
+                        player.getName().getString(),
+                        newVehicle.getType().toShortString());
+            }
+
+            return player;
+        } finally {
+            currentlyTeleporting.remove(vehicleId);
+        }
     }
 
     public static void onPostTeleport(ServerPlayer player, ServerLevel targetLevel, Vec3 targetPos) {
@@ -211,6 +242,50 @@ public final class TeleportHandler {
 
     private static boolean isSupportedType(Entity entity) {
         return SUPPORTED_TYPES.contains(entity.getType());
+    }
+
+    private static Entity getEligibleVehicle(ServerPlayer player, ServerLevel targetLevel) {
+        if (!TpWithMeConfig.get().enabled) return null;
+
+        Entity vehicle = player.getVehicle();
+        if (vehicle == null) return null;
+        if (currentlyTeleporting.contains(vehicle.getUUID())) return null;
+        if (!isSupportedType(vehicle)) return null;
+
+        if (isBlacklisted(vehicle)) {
+            TpWithMe.LOGGER.debug("{} {} is blacklisted; skipping.",
+                    TpWithMe.prefix(),
+                    vehicle.getType().toShortString());
+            return null;
+        }
+
+        if (TpWithMeConfig.get().requireSaddle && !hasSaddle(vehicle)) {
+            TpWithMe.LOGGER.debug("{} {} has no saddle; skipping.",
+                    TpWithMe.prefix(),
+                    vehicle.getType().toShortString());
+            return null;
+        }
+
+        if (!PermissionManager.canUse(player)) {
+            TpWithMe.LOGGER.debug("{} {} lacks permission {}; skipping.",
+                    TpWithMe.prefix(),
+                    player.getName().getString(), PermissionManager.USE_PERMISSION);
+            return null;
+        }
+
+        boolean crossDim = vehicle.level() != targetLevel;
+        if (crossDim && !TpWithMeConfig.get().crossDimensionalTeleport) {
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] Cross-dimensional mount teleport is disabled in the config."));
+            return null;
+        }
+        if (crossDim && !PermissionManager.canCrossDimensionalTeleport(player)) {
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] You don't have permission to take your mount across dimensions."));
+            return null;
+        }
+
+        return vehicle;
     }
 
     private static boolean isBlacklisted(Entity entity) {

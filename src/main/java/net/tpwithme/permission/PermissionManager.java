@@ -11,6 +11,8 @@ public final class PermissionManager {
     public static final String USE_PERMISSION = "tpwithme.use";
     public static final String CROSS_DIMENSIONAL_TELEPORT_PERMISSION =
             "tpwithme.crossdimensionalteleport";
+    public static final String ENDER_PEARL_TELEPORT_PERMISSION =
+            "tpwithme.enderpearlteleport";
 
     private static boolean luckPermsInstalled;
     private static boolean luckPermsActive;
@@ -45,5 +47,9 @@ public final class PermissionManager {
 
     public static boolean canCrossDimensionalTeleport(ServerPlayer player) {
         return !luckPermsActive || Permissions.check(player, CROSS_DIMENSIONAL_TELEPORT_PERMISSION, false);
+    }
+
+    public static boolean canEnderPearlTeleport(ServerPlayer player) {
+        return !luckPermsActive || Permissions.check(player, ENDER_PEARL_TELEPORT_PERMISSION, false);
     }
 }

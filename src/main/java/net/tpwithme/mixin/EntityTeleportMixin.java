@@ -30,6 +30,10 @@ public class EntityTeleportMixin {
             TeleportTransition transition,
             CallbackInfoReturnable<ServerPlayer> cir
     ) {
+        if (transition.asPassenger()) {
+            return;
+        }
+
         ServerPlayer player = (ServerPlayer) (Object) this;
         TpWithMe.LOGGER.debug("{} HEAD: teleport() called for player {}, vehicle={}",
                 TpWithMe.prefix(),
@@ -48,6 +52,10 @@ public class EntityTeleportMixin {
             TeleportTransition transition,
             CallbackInfoReturnable<ServerPlayer> cir
     ) {
+        if (transition.asPassenger()) {
+            return;
+        }
+
         ServerPlayer returned = cir.getReturnValue();
 
         if (returned == null) {
@@ -63,7 +71,7 @@ public class EntityTeleportMixin {
                 TpWithMe.prefix(),
                 returned.getName().getString());
 
-        ServerLevel newLevel = (ServerLevel) returned.level();
-        TeleportHandler.onPostTeleport(returned, newLevel, returned.position());
+        ServerLevel newLevel = transition.newLevel();
+        TeleportHandler.onPostTeleport(returned, newLevel, transition.position());
     }
 }

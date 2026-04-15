@@ -11,7 +11,7 @@ Your mount follows you through every teleport — commands, plugins, portals, yo
 
 ## ✨ Features
 
-- 🐴 Mount teleports with you on every `/tp`, `/home`, portal, or any other teleport
+- 🐴 Mount teleports with you on every `/tp`, `/home`, portal, ender pearl, or any other teleport
 - 🧑‍🤝‍🧑 Player stays seated on the mount after teleporting
 - 🌍 Cross-dimensional travel — Overworld ↔ Nether ↔ End *(configurable)*
 - 🔒 Safety check — mount won't teleport into solid blocks *(configurable)*
@@ -68,6 +68,7 @@ Both dependencies are optional and are not required on dedicated servers.
   "enabled": true,
   "useLuckPerms": false,
   "crossDimensionalTeleport": true,
+  "enderPearlTeleport": true,
   "requireSaddle": true,
   "checkSafety": true,
   "applyTeleportProtection": true,
@@ -89,6 +90,7 @@ Enable LuckPerms permission checks when the `luckperms` mod is installed.
 If `true` and LuckPerms is present, TpWithMe checks:
 - `tpwithme.use`
 - `tpwithme.crossdimensionalteleport`
+- `tpwithme.enderpearlteleport`
 
 When LuckPerms is active, players must be explicitly granted these permissions.  
 If LuckPerms is not installed, TpWithMe automatically falls back to allowing everyone to use the mod.  
@@ -97,6 +99,11 @@ Default: `false`
 #### `crossDimensionalTeleport`
 Allow mounts to follow through dimension changes (Overworld ↔ Nether ↔ End).  
 When `false`, only same-dimension teleports carry the mount.  
+Default: `true`
+
+#### `enderPearlTeleport`
+Allow ender pearls to take your mount along.  
+When `false`, mounted ender pearls use vanilla behaviour and only teleport the player.  
 Default: `true`
 
 #### `requireSaddle`
@@ -153,6 +160,7 @@ If LuckPerms is active, missing permission nodes default to `false`.
 |---|---|
 | `tpwithme.use` | Allow a player to take their mount along during teleports |
 | `tpwithme.crossdimensionalteleport` | Allow a player to take their mount across dimensions |
+| `tpwithme.enderpearlteleport` | Allow a player to take their mount along with an ender pearl |
 
 ### Example groups
 
@@ -165,6 +173,7 @@ group.vip:
   permissions:
     - tpwithme.use
     - tpwithme.crossdimensionalteleport
+    - tpwithme.enderpearlteleport
 ```
 
 ### Example commands
@@ -172,9 +181,11 @@ group.vip:
 ```bash
 /lp group default permission set tpwithme.use true
 /lp group default permission set tpwithme.crossdimensionalteleport false
+/lp group default permission set tpwithme.enderpearlteleport false
 
 /lp group vip permission set tpwithme.use true
 /lp group vip permission set tpwithme.crossdimensionalteleport true
+/lp group vip permission set tpwithme.enderpearlteleport true
 ```
 
 ### `/tpwithme info`

@@ -44,6 +44,12 @@ final class TpWithMeClothConfigScreen {
                 .setSaveConsumer(value -> config.crossDimensionalTeleport = value)
                 .build());
 
+        general.addEntry(entries.startBooleanToggle(Component.literal("Ender Pearl Teleport"), config.enderPearlTeleport)
+                .setDefaultValue(true)
+                .setTooltip(Component.literal("Allow ender pearls to take your mount along. Disable this for vanilla pearl behaviour."))
+                .setSaveConsumer(value -> config.enderPearlTeleport = value)
+                .build());
+
         general.addEntry(entries.startBooleanToggle(Component.literal("Require Saddle"), config.requireSaddle)
                 .setDefaultValue(true)
                 .setTooltip(

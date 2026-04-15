@@ -4,7 +4,8 @@
   "package": "net.tpwithme.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "EntityTeleportMixin"
+    "EntityTeleportMixin",
+    "ThrownEnderpearlMixin"
   ],
   "injectors": {
     "defaultRequire": 1

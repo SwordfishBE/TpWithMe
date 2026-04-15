@@ -36,6 +36,12 @@ public class TpWithMeConfig {
     public boolean crossDimensionalTeleport = true;
 
     /**
+     * Allow ender pearls to take the player's mount along.
+     * When false, ender pearls use vanilla behaviour and only teleport the player.
+     */
+    public boolean enderPearlTeleport = true;
+
+    /**
      * Only teleport the mount when the player has the appropriate control item:
      *   Saddle  – Horse, Donkey, Mule, SkeletonHorse, ZombieHorse,
      *             Camel, CamelHusk, Pig, Strider, Nautilus, ZombieNautilus
@@ -125,6 +131,7 @@ public class TpWithMeConfig {
         copy.enabled = enabled;
         copy.useLuckPerms = useLuckPerms;
         copy.crossDimensionalTeleport = crossDimensionalTeleport;
+        copy.enderPearlTeleport = enderPearlTeleport;
         copy.requireSaddle = requireSaddle;
         copy.checkSafety = checkSafety;
         copy.applyTeleportProtection = applyTeleportProtection;
@@ -168,6 +175,10 @@ public class TpWithMeConfig {
         appendComment(sb, "Allow mounts to follow through dimension changes like Overworld, Nether, and End.");
         appendComment(sb, "If false, only same-dimension teleports carry the mount.");
         appendProperty(sb, "crossDimensionalTeleport", config.crossDimensionalTeleport, true);
+
+        appendComment(sb, "Allow ender pearls to take your mount along.");
+        appendComment(sb, "If false, mounted ender pearls use vanilla behaviour and only teleport the player.");
+        appendProperty(sb, "enderPearlTeleport", config.enderPearlTeleport, true);
 
         appendComment(sb, "Require the correct control item before a mount can teleport.");
         appendComment(sb, "Saddle: Horse, Donkey, Mule, Skeleton Horse, Zombie Horse, Camel, Camel Husk, Pig, Strider, Nautilus, Zombie Nautilus.");
