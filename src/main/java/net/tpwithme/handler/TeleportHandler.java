@@ -110,11 +110,6 @@ public final class TeleportHandler {
                         "[TpWithMe] Not enough space at pearl landing for you and your mount."));
                 return null;
             }
-
-            if (!mountPos.equals(original.position())) {
-                player.sendSystemMessage(Component.literal(
-                        "[TpWithMe] Pearl landing adjusted to a nearby safe position."));
-            }
         }
 
         UUID vehicleId = vehicle.getUUID();
