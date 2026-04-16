@@ -143,12 +143,16 @@ public final class TeleportHandler {
                 return null;
             }
 
-            if (player.getVehicle() == null) {
+            if (player.getVehicle() == null || !player.getVehicle().getUUID().equals(newVehicle.getUUID())) {
                 TpWithMe.LOGGER.warn("{} Mounted pearl teleport left player {} dismounted from {}.",
                         TpWithMe.prefix(),
                         player.getName().getString(),
                         newVehicle.getType().toShortString());
             }
+
+            // Pearl teleports bypass the normal post-teleport hook, so keep the
+            // same delayed recovery path as regular teleports.
+            RemountWatcher.schedule(player, newVehicle.getUUID());
 
             return player;
         } finally {

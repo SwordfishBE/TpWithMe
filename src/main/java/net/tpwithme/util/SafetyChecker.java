@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.TpWithMe;
@@ -114,11 +115,43 @@ public final class SafetyChecker {
         int maxY = (int) Math.floor(pos.y + totalH);
         int maxZ = (int) Math.floor(pos.z + halfW);
 
+        int supportY = minY - 1;
+        boolean hasSupport = false;
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                BlockPos supportPos = new BlockPos(x, supportY, z);
+                BlockState supportState = level.getBlockState(supportPos);
+                if (isHazardous(level, supportPos, supportState)) {
+                    TpWithMe.LOGGER.debug(
+                            "{} SafetyCheck: unsafe support block {} at [{},{},{}]",
+                            TpWithMe.prefix(), supportState.getBlock(), x, supportY, z);
+                    return supportPos;
+                }
+                if (!supportState.getCollisionShape(level, supportPos).isEmpty()) {
+                    hasSupport = true;
+                }
+            }
+        }
+
+        if (!hasSupport) {
+            BlockPos unsupportedPos = new BlockPos((int) Math.floor(pos.x), supportY, (int) Math.floor(pos.z));
+            TpWithMe.LOGGER.debug(
+                    "{} SafetyCheck: no solid ground under destination at [{},{},{}]",
+                    TpWithMe.prefix(), unsupportedPos.getX(), unsupportedPos.getY(), unsupportedPos.getZ());
+            return unsupportedPos;
+        }
+
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     BlockPos bp = new BlockPos(x, y, z);
                     BlockState state = level.getBlockState(bp);
+                    if (isHazardous(level, bp, state)) {
+                        TpWithMe.LOGGER.debug(
+                                "{} SafetyCheck: hazardous block {} at [{},{},{}]",
+                                TpWithMe.prefix(), state.getBlock(), x, y, z);
+                        return bp;
+                    }
                     if (!state.getCollisionShape(level, bp).isEmpty()) {
                         TpWithMe.LOGGER.debug(
                                 "{} SafetyCheck: blocked by {} at [{},{},{}]",
@@ -129,5 +162,21 @@ public final class SafetyChecker {
             }
         }
         return null;
+    }
+
+    private static boolean isHazardous(ServerLevel level, BlockPos pos, BlockState state) {
+        if (!level.getFluidState(pos).isEmpty()) {
+            return true;
+        }
+
+        return state.is(Blocks.FIRE)
+                || state.is(Blocks.SOUL_FIRE)
+                || state.is(Blocks.CACTUS)
+                || state.is(Blocks.SWEET_BERRY_BUSH)
+                || state.is(Blocks.POWDER_SNOW)
+                || state.is(Blocks.CAMPFIRE)
+                || state.is(Blocks.SOUL_CAMPFIRE)
+                || state.is(Blocks.MAGMA_BLOCK)
+                || state.is(Blocks.LAVA_CAULDRON);
     }
 }

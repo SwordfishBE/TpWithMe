@@ -20,6 +20,8 @@ public class TpWithMeConfig {
 
     private static TpWithMeConfig instance = new TpWithMeConfig();
 
+    private record LoadResult(TpWithMeConfig config, boolean shouldSave) {}
+
     /** Master switch. */
     public boolean enabled = true;
 
@@ -83,31 +85,16 @@ public class TpWithMeConfig {
     }
 
     public static void load() {
-        instance = loadForEditing();
-        save();
+        LoadResult loadResult = loadInternal();
+        instance = loadResult.config();
+        if (loadResult.shouldSave()) {
+            save();
+        }
         TpWithMe.LOGGER.debug("{} Config loaded.", TpWithMe.prefix());
     }
 
     public static TpWithMeConfig loadForEditing() {
-        TpWithMeConfig loadedConfig = new TpWithMeConfig();
-
-        if (Files.exists(CONFIG_PATH)) {
-            try {
-                String rawConfig = Files.readString(CONFIG_PATH);
-                String json = stripJsonComments(rawConfig);
-                TpWithMeConfig loaded = GSON.fromJson(json, TpWithMeConfig.class);
-                if (loaded != null) {
-                    loadedConfig = loaded;
-                }
-            } catch (IOException e) {
-                TpWithMe.LOGGER.error("{} Failed to read config, using defaults.", TpWithMe.prefix(), e);
-            } catch (Exception e) {
-                TpWithMe.LOGGER.error("{} Failed to parse config, using defaults.", TpWithMe.prefix(), e);
-            }
-        }
-
-        loadedConfig.normalize();
-        return loadedConfig;
+        return loadInternal().config();
     }
 
     public static void applyEditedConfig(TpWithMeConfig editedConfig) {
@@ -298,5 +285,39 @@ public class TpWithMeConfig {
         }
 
         return sb.toString();
+    }
+
+    private static LoadResult loadInternal() {
+        TpWithMeConfig loadedConfig = new TpWithMeConfig();
+        boolean shouldSave = !Files.exists(CONFIG_PATH);
+
+        if (!shouldSave) {
+            try {
+                String rawConfig = Files.readString(CONFIG_PATH);
+                String json = stripJsonComments(rawConfig);
+                TpWithMeConfig loaded = GSON.fromJson(json, TpWithMeConfig.class);
+                if (loaded == null) {
+                    TpWithMe.LOGGER.error("{} Failed to parse config, using defaults without overwriting the existing file.",
+                            TpWithMe.prefix());
+                    loadedConfig.normalize();
+                    return new LoadResult(loadedConfig, false);
+                }
+                loadedConfig = loaded;
+                shouldSave = true;
+            } catch (IOException e) {
+                TpWithMe.LOGGER.error("{} Failed to read config, using defaults without overwriting the existing file.",
+                        TpWithMe.prefix(), e);
+                loadedConfig.normalize();
+                return new LoadResult(loadedConfig, false);
+            } catch (Exception e) {
+                TpWithMe.LOGGER.error("{} Failed to parse config, using defaults without overwriting the existing file.",
+                        TpWithMe.prefix(), e);
+                loadedConfig.normalize();
+                return new LoadResult(loadedConfig, false);
+            }
+        }
+
+        loadedConfig.normalize();
+        return new LoadResult(loadedConfig, shouldSave);
     }
 }
