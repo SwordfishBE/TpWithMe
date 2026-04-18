@@ -13,6 +13,8 @@ public final class PermissionManager {
             "tpwithme.crossdimensionalteleport";
     public static final String ENDER_PEARL_TELEPORT_PERMISSION =
             "tpwithme.enderpearlteleport";
+    public static final String CHORUS_FRUIT_TELEPORT_PERMISSION =
+            "tpwithme.chorusfruitteleport";
 
     private static boolean luckPermsInstalled;
     private static boolean luckPermsActive;
@@ -51,5 +53,9 @@ public final class PermissionManager {
 
     public static boolean canEnderPearlTeleport(ServerPlayer player) {
         return !luckPermsActive || Permissions.check(player, ENDER_PEARL_TELEPORT_PERMISSION, false);
+    }
+
+    public static boolean canChorusFruitTeleport(ServerPlayer player) {
+        return !luckPermsActive || Permissions.check(player, CHORUS_FRUIT_TELEPORT_PERMISSION, false);
     }
 }

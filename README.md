@@ -11,7 +11,7 @@ Your mount follows you through every teleport — commands, plugins, portals, yo
 
 ## ✨ Features
 
-- 🐴 Mount teleports with you on every `/tp`, `/home`, portal, ender pearl, or any other teleport
+- 🐴 Mount teleports with you on every `/tp`, `/home`, portal, ender pearl, chorus fruit, or any other teleport
 - 🧑‍🤝‍🧑 Player stays seated on the mount after teleporting
 - 🌍 Cross-dimensional travel — Overworld ↔ Nether ↔ End *(configurable)*
 - 🔒 Safety check — mount won't teleport into solid blocks *(configurable)*
@@ -69,6 +69,7 @@ Both dependencies are optional and are not required on dedicated servers.
   "useLuckPerms": false,
   "crossDimensionalTeleport": true,
   "enderPearlTeleport": true,
+  "chorusFruitTeleport": true,
   "requireSaddle": true,
   "checkSafety": true,
   "applyTeleportProtection": true,
@@ -91,6 +92,7 @@ If `true` and LuckPerms is present, TpWithMe checks:
 - `tpwithme.use`
 - `tpwithme.crossdimensionalteleport`
 - `tpwithme.enderpearlteleport`
+- `tpwithme.chorusfruitteleport`
 
 When LuckPerms is active, players must be explicitly granted these permissions.  
 If LuckPerms is not installed, TpWithMe automatically falls back to allowing everyone to use the mod.  
@@ -104,6 +106,11 @@ Default: `true`
 #### `enderPearlTeleport`
 Allow ender pearls to take your mount along.  
 When `false`, mounted ender pearls use vanilla behaviour and only teleport the player.  
+Default: `true`
+
+#### `chorusFruitTeleport`
+Allow chorus fruit to take your mount along.  
+When `false`, mounted chorus fruit uses vanilla behaviour and only teleports the player.  
 Default: `true`
 
 #### `requireSaddle`
@@ -161,6 +168,7 @@ If LuckPerms is active, missing permission nodes default to `false`.
 | `tpwithme.use` | Allow a player to take their mount along during teleports |
 | `tpwithme.crossdimensionalteleport` | Allow a player to take their mount across dimensions |
 | `tpwithme.enderpearlteleport` | Allow a player to take their mount along with an ender pearl |
+| `tpwithme.chorusfruitteleport` | Allow a player to take their mount along when eating chorus fruit |
 
 ### Example groups
 
@@ -174,6 +182,7 @@ group.vip:
     - tpwithme.use
     - tpwithme.crossdimensionalteleport
     - tpwithme.enderpearlteleport
+    - tpwithme.chorusfruitteleport
 ```
 
 ### Example commands
@@ -182,10 +191,12 @@ group.vip:
 /lp group default permission set tpwithme.use true
 /lp group default permission set tpwithme.crossdimensionalteleport false
 /lp group default permission set tpwithme.enderpearlteleport false
+/lp group default permission set tpwithme.chorusfruitteleport false
 
 /lp group vip permission set tpwithme.use true
 /lp group vip permission set tpwithme.crossdimensionalteleport true
 /lp group vip permission set tpwithme.enderpearlteleport true
+/lp group vip permission set tpwithme.chorusfruitteleport true
 ```
 
 ### `/tpwithme info`

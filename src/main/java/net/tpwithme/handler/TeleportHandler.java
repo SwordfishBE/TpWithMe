@@ -1,5 +1,6 @@
 package net.tpwithme.handler;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -14,8 +15,14 @@ import net.minecraft.world.entity.animal.equine.TraderLlama;
 import net.minecraft.world.entity.animal.nautilus.AbstractNautilus;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.monster.Strider;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.border.WorldBorder;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.portal.TeleportTransition;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.TpWithMe;
 import net.tpwithme.config.TpWithMeConfig;
@@ -112,47 +119,54 @@ public final class TeleportHandler {
             }
         }
 
-        UUID vehicleId = vehicle.getUUID();
-        currentlyTeleporting.add(vehicleId);
+        Entity newVehicle = teleportVehicleRoot(player, vehicle, original.newLevel(), mountPos);
+        return newVehicle != null ? player : null;
+    }
 
-        try {
-            if (TpWithMeConfig.get().applyTeleportProtection) {
-                applyProtection(vehicle, TpWithMeConfig.get().protectionDurationTicks);
-            }
-
-            TeleportTransition vehicleTransition = new TeleportTransition(
-                    original.newLevel(),
-                    mountPos,
-                    vehicle.getDeltaMovement(),
-                    vehicle.getYRot(),
-                    vehicle.getXRot(),
-                    Set.of(),
-                    TeleportTransition.DO_NOTHING
-            );
-
-            Entity newVehicle = vehicle.teleport(vehicleTransition);
-            if (newVehicle == null) {
-                TpWithMe.LOGGER.warn("{} Mounted pearl teleport returned null for {}.",
-                        TpWithMe.prefix(),
-                        vehicle.getType().toShortString());
-                return null;
-            }
-
-            if (player.getVehicle() == null || !player.getVehicle().getUUID().equals(newVehicle.getUUID())) {
-                TpWithMe.LOGGER.warn("{} Mounted pearl teleport left player {} dismounted from {}.",
-                        TpWithMe.prefix(),
-                        player.getName().getString(),
-                        newVehicle.getType().toShortString());
-            }
-
-            // Pearl teleports bypass the normal post-teleport hook, so keep the
-            // same delayed recovery path as regular teleports.
-            RemountWatcher.schedule(player, newVehicle.getUUID());
-
-            return player;
-        } finally {
-            currentlyTeleporting.remove(vehicleId);
+    public static Boolean handleMountedChorusFruitTeleport(ServerLevel level, ServerPlayer player, float diameter) {
+        if (!TpWithMeConfig.get().chorusFruitTeleport) {
+            return null;
         }
+
+        if (!PermissionManager.canChorusFruitTeleport(player)) {
+            return null;
+        }
+
+        Entity vehicle = getEligibleVehicle(player, level);
+        if (vehicle == null) {
+            return null;
+        }
+
+        Vec3 originalPos = player.position();
+
+        for (int attempt = 0; attempt < 16; attempt++) {
+            double x = player.getX() + (player.getRandom().nextDouble() - 0.5D) * diameter;
+            double y = Mth.clamp(
+                    player.getY() + (player.getRandom().nextDouble() - 0.5D) * diameter,
+                    level.getMinY(),
+                    level.getMinY() + level.getLogicalHeight() - 1
+            );
+            double z = player.getZ() + (player.getRandom().nextDouble() - 0.5D) * diameter;
+
+            Vec3 mountPos = findSafeChorusFruitDestination(vehicle, level, x, y, z);
+            if (mountPos == null) {
+                continue;
+            }
+
+            Entity newVehicle = teleportVehicleRoot(player, vehicle, level, mountPos);
+            if (newVehicle == null) {
+                continue;
+            }
+
+            level.gameEvent(GameEvent.TELEPORT, originalPos, GameEvent.Context.of(player));
+            level.playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.CHORUS_FRUIT_TELEPORT, SoundSource.PLAYERS);
+            player.resetFallDistance();
+            player.resetCurrentImpulseContext();
+            return true;
+        }
+
+        return false;
     }
 
     public static void onPostTeleport(ServerPlayer player, ServerLevel targetLevel, Vec3 targetPos) {
@@ -241,6 +255,89 @@ public final class TeleportHandler {
 
     private static boolean isSupportedType(Entity entity) {
         return SUPPORTED_TYPES.contains(entity.getType());
+    }
+
+    private static Entity teleportVehicleRoot(ServerPlayer player, Entity vehicle, ServerLevel targetLevel, Vec3 mountPos) {
+        UUID vehicleId = vehicle.getUUID();
+        currentlyTeleporting.add(vehicleId);
+
+        try {
+            if (TpWithMeConfig.get().applyTeleportProtection) {
+                applyProtection(vehicle, TpWithMeConfig.get().protectionDurationTicks);
+            }
+
+            TeleportTransition vehicleTransition = new TeleportTransition(
+                    targetLevel,
+                    mountPos,
+                    vehicle.getDeltaMovement(),
+                    vehicle.getYRot(),
+                    vehicle.getXRot(),
+                    Set.of(),
+                    TeleportTransition.DO_NOTHING
+            );
+
+            Entity newVehicle = vehicle.teleport(vehicleTransition);
+            if (newVehicle == null) {
+                TpWithMe.LOGGER.warn("{} Mounted teleport returned null for {}.",
+                        TpWithMe.prefix(),
+                        vehicle.getType().toShortString());
+                return null;
+            }
+
+            if (player.getVehicle() == null || !player.getVehicle().getUUID().equals(newVehicle.getUUID())) {
+                TpWithMe.LOGGER.warn("{} Mounted teleport left player {} dismounted from {}.",
+                        TpWithMe.prefix(),
+                        player.getName().getString(),
+                        newVehicle.getType().toShortString());
+            }
+
+            RemountWatcher.schedule(player, newVehicle.getUUID());
+            return newVehicle;
+        } finally {
+            currentlyTeleporting.remove(vehicleId);
+        }
+    }
+
+    private static Vec3 findSafeChorusFruitDestination(Entity vehicle, ServerLevel level, double x, double y, double z) {
+        BlockPos targetPos = BlockPos.containing(x, y, z);
+        if (!level.hasChunkAt(targetPos)) {
+            return null;
+        }
+
+        boolean foundGround = false;
+        double adjustedY = y;
+        BlockPos scanPos = targetPos;
+
+        while (!foundGround && scanPos.getY() > level.getMinY()) {
+            BlockPos below = scanPos.below();
+            BlockState belowState = level.getBlockState(below);
+            if (belowState.blocksMotion()) {
+                foundGround = true;
+            } else {
+                adjustedY -= 1.0D;
+                scanPos = below;
+            }
+        }
+
+        if (!foundGround) {
+            return null;
+        }
+
+        Vec3 groundedPos = new Vec3(x, adjustedY, z);
+        Vec3 mountPos = groundedPos;
+        if (TpWithMeConfig.get().checkSafety) {
+            mountPos = SafetyChecker.findSafePosition(vehicle, level, groundedPos, TpWithMeConfig.get().safetySearchRadius);
+            if (mountPos == null) {
+                return null;
+            }
+        }
+
+        AABB vehicleBox = vehicle.getDimensions(Pose.STANDING).makeBoundingBox(mountPos);
+        if (level.containsAnyLiquid(vehicleBox)) {
+            return null;
+        }
+
+        return mountPos;
     }
 
     private static Entity getEligibleVehicle(ServerPlayer player, ServerLevel targetLevel) {

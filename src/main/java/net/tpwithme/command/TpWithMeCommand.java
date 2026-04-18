@@ -46,6 +46,7 @@ public final class TpWithMeCommand {
                 "§7useLuckPerms§r:             §e" + cfg.useLuckPerms + "\n" +
                 "§7crossDimensionalTeleport§r:  §e" + cfg.crossDimensionalTeleport + "\n" +
                 "§7enderPearlTeleport§r:        §e" + cfg.enderPearlTeleport + "\n" +
+                "§7chorusFruitTeleport§r:       §e" + cfg.chorusFruitTeleport + "\n" +
                 "§7requireSaddle§r:             §e" + cfg.requireSaddle + "\n" +
                 "§7checkSafety§r:               §e" + cfg.checkSafety + "\n" +
                 "§7applyTeleportProtection§r:   §e" + cfg.applyTeleportProtection + "\n" +

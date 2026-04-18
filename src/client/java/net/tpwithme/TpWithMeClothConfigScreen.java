@@ -26,6 +26,10 @@ final class TpWithMeClothConfigScreen {
         ConfigCategory entities = builder.getOrCreateCategory(Component.literal("Entities"));
         ConfigEntryBuilder entries = builder.entryBuilder();
 
+        general.addEntry(entries.startTextDescription(Component.literal(
+                "Edits here change this installation's local config. On multiplayer servers, the server config still decides TpWithMe behavior."
+        )).build());
+
         general.addEntry(entries.startBooleanToggle(Component.literal("Enabled"), config.enabled)
                 .setDefaultValue(true)
                 .setTooltip(Component.literal("Master switch for TpWithMe. Disable this to keep the mod loaded but inactive."))
@@ -48,6 +52,12 @@ final class TpWithMeClothConfigScreen {
                 .setDefaultValue(true)
                 .setTooltip(Component.literal("Allow ender pearls to take your mount along. Disable this for vanilla pearl behaviour."))
                 .setSaveConsumer(value -> config.enderPearlTeleport = value)
+                .build());
+
+        general.addEntry(entries.startBooleanToggle(Component.literal("Chorus Fruit Teleport"), config.chorusFruitTeleport)
+                .setDefaultValue(true)
+                .setTooltip(Component.literal("Allow chorus fruit to take your mount along. Disable this for vanilla chorus fruit behaviour."))
+                .setSaveConsumer(value -> config.chorusFruitTeleport = value)
                 .build());
 
         general.addEntry(entries.startBooleanToggle(Component.literal("Require Saddle"), config.requireSaddle)
