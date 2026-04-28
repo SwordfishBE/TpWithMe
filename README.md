@@ -18,6 +18,7 @@ Your mount follows you through every teleport — commands, plugins, portals, yo
 - 🛡️ Damage resistance applied to mount during transition to prevent death
 - 🚫 Entity blacklist — exclude specific mounts from ever teleporting
 - 🔁 Post-teleport remount watcher — catches edge-case dismounts and fixes them automatically
+- 🧩 Optional Open Parties and Claims support — respects claim access, chorus fruit rules, and ender pearl barrier groups
 - ⚙️ Optional Mod Menu + Cloth Config support for an in-game client config screen
 
 ---
@@ -70,6 +71,7 @@ Both dependencies are optional and are not required on dedicated servers.
   "crossDimensionalTeleport": true,
   "enderPearlTeleport": true,
   "chorusFruitTeleport": true,
+  "respectOpenPartiesAndClaims": true,
   "requireSaddle": true,
   "checkSafety": true,
   "applyTeleportProtection": true,
@@ -111,6 +113,14 @@ Default: `true`
 #### `chorusFruitTeleport`
 Allow chorus fruit to take your mount along.  
 When `false`, mounted chorus fruit uses vanilla behaviour and only teleports the player.  
+Default: `true`
+
+#### `respectOpenPartiesAndClaims`
+Respect [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-claims) claim protection when it is installed.
+
+TpWithMe checks claim access before moving the mount into a claim. For mounted chorus fruit it respects OPAC's chorus fruit exception option. For mounted ender pearls it respects OPAC's configured Ender Pearls entity barrier group when present.
+
+Disable this only if you deliberately want TpWithMe to ignore OPAC claim protection.
 Default: `true`
 
 #### `requireSaddle`
@@ -226,7 +236,6 @@ TpWithMe uses a Mixin on `ServerPlayer#teleport(TeleportTransition)`:
 | [Essential Commands](https://modrinth.com/mod/essential-commands) | ✅ Compatible |
 | [Fabric Essentials](https://modrinth.com/mod/melius-essentials) | ✅ Compatible |
 | [Leashed Teleport](https://github.com/SwordfishBE/LeashedTeleport) | ✅ Compatible |
-
 
 ### Other mods
 If another mod forcibly dismounts the player *before* TpWithMe's HEAD injection, the vehicle cannot be captured. The RemountWatcher may recover this in some cases. Please open an issue if you encounter a conflict.

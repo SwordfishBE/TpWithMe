@@ -50,6 +50,13 @@ public class TpWithMeConfig {
     public boolean chorusFruitTeleport = true;
 
     /**
+     * Respect Open Parties and Claims chunk protection when it is installed.
+     * Prevents TpWithMe from carrying mounts into claims that block the
+     * matching teleport mechanic.
+     */
+    public boolean respectOpenPartiesAndClaims = true;
+
+    /**
      * Only teleport the mount when the player has the appropriate control item:
      *   Saddle  – Horse, Donkey, Mule, SkeletonHorse, ZombieHorse,
      *             Camel, CamelHusk, Pig, Strider, Nautilus, ZombieNautilus
@@ -126,6 +133,7 @@ public class TpWithMeConfig {
         copy.crossDimensionalTeleport = crossDimensionalTeleport;
         copy.enderPearlTeleport = enderPearlTeleport;
         copy.chorusFruitTeleport = chorusFruitTeleport;
+        copy.respectOpenPartiesAndClaims = respectOpenPartiesAndClaims;
         copy.requireSaddle = requireSaddle;
         copy.checkSafety = checkSafety;
         copy.applyTeleportProtection = applyTeleportProtection;
@@ -177,6 +185,10 @@ public class TpWithMeConfig {
         appendComment(sb, "Allow chorus fruit to take your mount along.");
         appendComment(sb, "If false, mounted chorus fruit uses vanilla behaviour and only teleports the player.");
         appendProperty(sb, "chorusFruitTeleport", config.chorusFruitTeleport, true);
+
+        appendComment(sb, "Respect Open Parties and Claims protection when OPAC is installed.");
+        appendComment(sb, "Blocks mount teleports into claims that deny the matching teleport mechanic.");
+        appendProperty(sb, "respectOpenPartiesAndClaims", config.respectOpenPartiesAndClaims, true);
 
         appendComment(sb, "Require the correct control item before a mount can teleport.");
         appendComment(sb, "Saddle: Horse, Donkey, Mule, Skeleton Horse, Zombie Horse, Camel, Camel Husk, Pig, Strider, Nautilus, Zombie Nautilus.");

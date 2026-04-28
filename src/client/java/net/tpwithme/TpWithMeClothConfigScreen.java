@@ -60,6 +60,12 @@ final class TpWithMeClothConfigScreen {
                 .setSaveConsumer(value -> config.chorusFruitTeleport = value)
                 .build());
 
+        general.addEntry(entries.startBooleanToggle(Component.literal("Respect Open Parties and Claims"), config.respectOpenPartiesAndClaims)
+                .setDefaultValue(true)
+                .setTooltip(Component.literal("When Open Parties and Claims is installed, respect claim teleport and barrier rules."))
+                .setSaveConsumer(value -> config.respectOpenPartiesAndClaims = value)
+                .build());
+
         general.addEntry(entries.startBooleanToggle(Component.literal("Require Saddle"), config.requireSaddle)
                 .setDefaultValue(true)
                 .setTooltip(

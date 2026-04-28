@@ -25,6 +25,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.TpWithMe;
+import net.tpwithme.compat.OpenPartiesAndClaimsCompat;
 import net.tpwithme.config.TpWithMeConfig;
 import net.tpwithme.permission.PermissionManager;
 import net.tpwithme.util.SafetyChecker;
@@ -119,6 +120,12 @@ public final class TeleportHandler {
             }
         }
 
+        if (!canTeleportMountIntoClaim(player, original.newLevel(), mountPos, OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL)) {
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] Open Parties and Claims blocks mounted ender pearl entry into this claim."));
+            return player.teleport(original);
+        }
+
         Entity newVehicle = teleportVehicleRoot(player, vehicle, original.newLevel(), mountPos);
         return newVehicle != null ? player : null;
     }
@@ -138,6 +145,7 @@ public final class TeleportHandler {
         }
 
         Vec3 originalPos = player.position();
+        boolean opacBlockedDestination = false;
 
         for (int attempt = 0; attempt < 16; attempt++) {
             double x = player.getX() + (player.getRandom().nextDouble() - 0.5D) * diameter;
@@ -150,6 +158,11 @@ public final class TeleportHandler {
 
             Vec3 mountPos = findSafeChorusFruitDestination(vehicle, level, x, y, z);
             if (mountPos == null) {
+                continue;
+            }
+
+            if (!canTeleportMountIntoClaim(player, level, mountPos, OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT)) {
+                opacBlockedDestination = true;
                 continue;
             }
 
@@ -166,6 +179,10 @@ public final class TeleportHandler {
             return true;
         }
 
+        if (opacBlockedDestination) {
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] Open Parties and Claims blocks mounted chorus fruit entry into the available destinations."));
+        }
         return false;
     }
 
@@ -198,6 +215,12 @@ public final class TeleportHandler {
                 player.sendSystemMessage(Component.literal(
                         "[TpWithMe] Mount adjusted to a nearby safe position."));
             }
+        }
+
+        if (!canTeleportMountIntoClaim(player, targetLevel, mountPos, OpenPartiesAndClaimsCompat.TeleportType.GENERAL)) {
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] Open Parties and Claims blocks your mount from entering this claim."));
+            return;
         }
 
         UUID vehicleId = vehicle.getUUID();
@@ -382,6 +405,18 @@ public final class TeleportHandler {
         }
 
         return vehicle;
+    }
+
+    private static boolean canTeleportMountIntoClaim(
+            ServerPlayer player,
+            ServerLevel level,
+            Vec3 pos,
+            OpenPartiesAndClaimsCompat.TeleportType teleportType
+    ) {
+        if (!TpWithMeConfig.get().respectOpenPartiesAndClaims) {
+            return true;
+        }
+        return OpenPartiesAndClaimsCompat.canTeleportInto(level, BlockPos.containing(pos), player, teleportType);
     }
 
     private static boolean isBlacklisted(Entity entity) {
