@@ -50,22 +50,22 @@ public final class TeleportHandler {
 
     // ─── Supported entity types ───────────────────────────────────────────────
 
-    private static final Set<EntityType<?>> SUPPORTED_TYPES = new HashSet<>(Arrays.asList(
-            EntityType.HORSE,
-            EntityType.DONKEY,
-            EntityType.MULE,
-            EntityType.SKELETON_HORSE,
-            EntityType.ZOMBIE_HORSE,
-            EntityType.CAMEL,
-            EntityType.CAMEL_HUSK,
-            EntityType.PIG,
-            EntityType.STRIDER,
-            EntityType.NAUTILUS,
-            EntityType.ZOMBIE_NAUTILUS,
-            EntityType.LLAMA,
-            EntityType.TRADER_LLAMA,
-            EntityType.HAPPY_GHAST
-    ));
+    private static final Set<String> SUPPORTED_ENTITY_IDS = Set.of(
+            "minecraft:horse",
+            "minecraft:donkey",
+            "minecraft:mule",
+            "minecraft:skeleton_horse",
+            "minecraft:zombie_horse",
+            "minecraft:camel",
+            "minecraft:camel_husk",
+            "minecraft:pig",
+            "minecraft:strider",
+            "minecraft:nautilus",
+            "minecraft:zombie_nautilus",
+            "minecraft:llama",
+            "minecraft:trader_llama",
+            "minecraft:happy_ghast"
+    );
 
     // ─── State ────────────────────────────────────────────────────────────────
 
@@ -277,7 +277,8 @@ public final class TeleportHandler {
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static boolean isSupportedType(Entity entity) {
-        return SUPPORTED_TYPES.contains(entity.getType());
+        var id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        return id != null && SUPPORTED_ENTITY_IDS.contains(id.toString());
     }
 
     private static Entity teleportVehicleRoot(ServerPlayer player, Entity vehicle, ServerLevel targetLevel, Vec3 mountPos) {
