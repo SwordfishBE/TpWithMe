@@ -335,7 +335,7 @@ public final class TeleportHandler {
         while (!foundGround && scanPos.getY() > level.getMinY()) {
             BlockPos below = scanPos.below();
             BlockState belowState = level.getBlockState(below);
-            if (belowState.blocksMotion()) {
+            if (belowState.entityCanStandOn(level, below, vehicle)) {
                 foundGround = true;
             } else {
                 adjustedY -= 1.0D;
