@@ -112,6 +112,7 @@ Default: `true`
 
 #### `chorusFruitTeleport`
 Allow chorus fruit to take your mount along.  
+Grounding uses actual collision surfaces, including slabs, and respects Minecraft's `consumable_does_not_teleport_to` block tag (including datapack additions).
 When `false`, mounted chorus fruit uses vanilla behaviour and only teleports the player.  
 Default: `true`
 
@@ -121,6 +122,7 @@ Respect [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-clai
 TpWithMe checks claim access before moving the mount into a claim. For mounted chorus fruit it respects OPAC's chorus fruit exception option. For mounted ender pearls it respects OPAC's configured Ender Pearls entity barrier group when present.
 
 Disable this only if you deliberately want TpWithMe to ignore OPAC claim protection.
+If OPAC is installed but its API fails, mount carry is blocked until the server restarts or this setting is explicitly disabled. The mod does not silently allow protected destinations.
 Default: `true`
 
 #### `requireSaddle`
@@ -135,7 +137,7 @@ Default: `true`
 Before teleporting, check whether there is enough room at the destination for the mount to stand upright and the rider to sit on top.  
 If the space is too small, the mount stays behind and a message is sent to the player.
 
-Uses direct block collision shape iteration — reliable even for large mounts like Happy Ghast (4×4×4 blocks).  
+Uses actual collision-shape intersections and checks the entire mount footprint against the world border. Nearby searching does not load new chunks. Flying mounts do not require ground; nautilus mounts can land in water and striders on lava surfaces.  
 Default: `true`
 
 #### `applyTeleportProtection`
@@ -149,9 +151,10 @@ Default: `60` (3 seconds)
 #### `safetySearchRadius`
 When `checkSafety` is `true` and the exact destination is blocked, the mod searches for a safe nearby position within this radius (in blocks).
 
-Search priority: Y upward first (most natural), then X/Z horizontal offsets, then Y downward.
+Searches horizontally, upward and downward, choosing the nearest safe candidate by distance. Actual collision surfaces (including slabs) are considered, so fractional pearl impact heights can be adjusted to the ground. The radius limits displacement on each axis. The selected destination still undergoes world-border and OPAC checks; searching does not load new chunks.
 
 Set to `0` to disable the search and only check the exact destination.  
+Allowed range: `0` to `4`. Larger values are clamped to prevent excessive server tick work.  
 Default: `2`
 
 #### `blacklistedEntities`
@@ -220,12 +223,12 @@ group.vip:
 
 ## 🔨 How It Works
 
-TpWithMe uses a Mixin on `ServerPlayer#teleport(TeleportTransition)`:
+TpWithMe wraps `ServerPlayer#teleport(TeleportTransition)` with MixinExtras:
 
-1. **HEAD injection** — before the player teleports, the current vehicle is captured and eligibility is checked (saddle, blacklist, LuckPerms permission, cross-dim flag).
+1. Before the player teleports, the current vehicle is captured locally and eligibility is checked (saddle, blacklist, LuckPerms permission, cross-dim flag). No entity is kept in a static pending-teleport map.
 2. The player teleports normally (Minecraft handles dismounting and moving the player).
-3. **RETURN injection** — after the player arrives, destination chunks are now loaded. The safety check runs against actual block collision shapes. If safe, the vehicle is teleported to the player's new position and `startRiding()` is called.
-4. **RemountWatcher** — 3 ticks later, a tick listener verifies the player is still mounted. If Minecraft forced a dismount (rare edge case), the vehicle is moved to the player and remount is attempted again.
+3. After success, the resolved player position and dimension are used, including relative teleports. Safety and claim checks run before moving and remounting the vehicle. A nested teleport supersedes the older capture.
+4. **RemountWatcher** checks after 3 ticks. It only attempts a nearby remount at the existing vehicle position after rechecking rules; it never teleports the vehicle. A new teleport, different mount, sneaking, disconnect, or server stop cancels recovery. Pending checks store IDs and positions, not players or worlds.
 
 ---
 
@@ -236,9 +239,11 @@ TpWithMe uses a Mixin on `ServerPlayer#teleport(TeleportTransition)`:
 | [Essential Commands](https://modrinth.com/mod/essential-commands) | ✅ Compatible |
 | [Fabric Essentials](https://modrinth.com/mod/melius-essentials) | ✅ Compatible |
 | [Leashed Teleport](https://github.com/SwordfishBE/LeashedTeleport) | ✅ Compatible |
+| [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-claims) | ✅ Optional support |
+
 
 ### Other mods
-If another mod forcibly dismounts the player *before* TpWithMe's HEAD injection, the vehicle cannot be captured. The RemountWatcher may recover this in some cases. Please open an issue if you encounter a conflict.
+If another mod forcibly dismounts the player before TpWithMe captures the vehicle, the mount cannot be recovered. Please open an issue if you encounter a conflict.
 
 ---
 
@@ -270,7 +275,11 @@ chmod +x gradlew
 # Output: build/libs/tpwithme-<version>.jar
 ```
 
-**Requirements:** JAVA JDK 25, Gradle 9.4
+**Requirements:** JAVA JDK 25, Gradle 9.7.1 (included wrapper)
+
+### Regression Tests
+
+`./gradlew build` runs the server GameTests without OPAC. Use `./gradlew runGameTest -PtestOpac` for the same suite with real OPAC 0.33.0 and Forge Config API Port 26.3.1. These are test-only dependencies and are not bundled with TpWithMe. See [REVIEW.md](REVIEW.md) for coverage and limitations.
 
 ---
 

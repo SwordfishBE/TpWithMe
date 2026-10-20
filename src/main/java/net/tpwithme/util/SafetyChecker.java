@@ -16,6 +16,10 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.tpwithme.config.TpWithMeConfig;
 
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
+
 public final class SafetyChecker {
     private static final double RIDER_CLEARANCE = 2.0;
     private static final int MAX_CANDIDATES = 1024;
@@ -38,26 +42,48 @@ public final class SafetyChecker {
     public static Vec3 findSafePosition(Entity vehicle, ServerLevel level, Vec3 targetPos, int searchRadius) {
         searchRadius = Math.clamp(searchRadius, 0, TpWithMeConfig.MAX_SAFETY_SEARCH_RADIUS);
         if (isSafe(vehicle, level, targetPos)) return targetPos;
-        int checked = 1;
-        for (int dy = 1; dy <= searchRadius; dy++) {
-            Vec3 candidate = targetPos.add(0, dy, 0);
-            checked++;
-            if (isSafe(vehicle, level, candidate)) return candidate;
-        }
-        for (int dy = 0; dy <= searchRadius; dy++) {
-            for (int sign = 1; sign >= -1; sign -= 2) {
-                if (dy == 0 && sign == -1) continue;
-                for (int dx = -searchRadius; dx <= searchRadius; dx++) {
-                    for (int dz = -searchRadius; dz <= searchRadius; dz++) {
-                        if (dx == 0 && dz == 0 && sign == 1) continue;
-                        if (++checked > MAX_CANDIDATES) return null;
-                        Vec3 candidate = targetPos.add(dx, dy * sign, dz);
-                        if (isSafe(vehicle, level, candidate)) return candidate;
+        if (searchRadius == 0 || !Double.isFinite(targetPos.x) || !Double.isFinite(targetPos.y)
+                || !Double.isFinite(targetPos.z)) return null;
+        Set<Vec3> candidates = new HashSet<>();
+        CollisionContext context = CollisionContext.of(vehicle);
+        int minY = Math.max(level.getMinY(), Mth.floor(targetPos.y - searchRadius) - 1);
+        int maxY = Math.min(level.getMaxY() - 1, Mth.floor(targetPos.y + searchRadius));
+        for (int dx = -searchRadius; dx <= searchRadius; dx++) {
+            for (int dz = -searchRadius; dz <= searchRadius; dz++) {
+                double x = targetPos.x + dx, z = targetPos.z + dz;
+                int blockX = Mth.floor(x), blockZ = Mth.floor(z);
+                if (!level.hasChunk(blockX >> 4, blockZ >> 4)) continue;
+                // Keep free-space candidates for flying and aquatic mounts.
+                for (int dy = -searchRadius; dy <= searchRadius; dy++) {
+                    candidates.add(new Vec3(x, targetPos.y + dy, z));
+                }
+                // Pearl impact heights are fractional: integer offsets alone never reach the floor.
+                for (int y = minY; y <= maxY; y++) {
+                    BlockPos block = new BlockPos(blockX, y, blockZ);
+                    BlockState state = level.getBlockState(block);
+                    for (AABB shape : state.getCollisionShape(level, block, context).toAabbs()) {
+                        double surface = y + shape.maxY;
+                        if (Math.abs(surface - targetPos.y) <= searchRadius) {
+                            candidates.add(new Vec3(x, surface, z));
+                        }
+                    }
+                    var fluid = state.getFluidState();
+                    if (vehicle instanceof Strider && fluid.is(FluidTags.LAVA)) {
+                        double surface = y + fluid.getHeight(level, block);
+                        if (Math.abs(surface - targetPos.y) <= searchRadius) {
+                            candidates.add(new Vec3(x, surface, z));
+                        }
                     }
                 }
             }
         }
-        return null;
+        return candidates.stream()
+                .sorted(Comparator.comparingDouble((Vec3 pos) -> pos.distanceToSqr(targetPos))
+                        .thenComparingDouble(pos -> pos.y).thenComparingDouble(pos -> pos.x)
+                        .thenComparingDouble(pos -> pos.z))
+                .limit(MAX_CANDIDATES)
+                .filter(pos -> isSafe(vehicle, level, pos))
+                .findFirst().orElse(null);
     }
 
     public static boolean isSafe(Entity vehicle, ServerLevel level, Vec3 pos) {

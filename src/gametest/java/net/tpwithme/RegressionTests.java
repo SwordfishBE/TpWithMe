@@ -78,6 +78,10 @@ public class RegressionTests {
         TeleportHandler.handleMountedPearlTeleport(player, transition(player, target));
         check(h, player.getVehicle() == horse && horse.position().distanceToSqr(target) < 0.01, "allowed pearl carries mount");
 
+        TeleportHandler.handleMountedPearlTeleport(player, transition(player, target.add(0, 0.37, 0)));
+        check(h, player.getVehicle() == horse && horse.position().distanceToSqr(target) < 0.01,
+                "fractional pearl landing relocates rider and mount to the ground");
+
         cfg.checkSafety = false;
         Vec3 before = player.position();
         player.teleport(new TeleportTransition(h.getLevel(), new Vec3(3, 0, 2), Vec3.ZERO, 0, 0,
@@ -112,6 +116,7 @@ public class RegressionTests {
                 "chorus grounds fractional rider height on the block surface");
 
         crossDimension(h, player, cfg, origin);
+        otherTeleports(h, player, horse, cfg, origin, target);
 
         safety(h, horse, origin);
         configAndUpdates(h);
@@ -235,22 +240,95 @@ public class RegressionTests {
         player.teleport(new TeleportTransition(nether, new Vec3(0.5, 80, 0.5), Vec3.ZERO, 0, 0, Set.of(), TeleportTransition.DO_NOTHING));
         check(h, player.level() == nether && player.getVehicle() != null && player.getVehicle().getUUID().equals(id),
                 "cross-dimensional teleport preserves mount identity and riding");
-        player.teleport(new TeleportTransition(h.getLevel(), origin, Vec3.ZERO, 0, 0, Set.of(), TeleportTransition.DO_NOTHING));
+        cfg.checkSafety = true;
+        player.teleport(new TeleportTransition(h.getLevel(), origin.add(0, 0.37, 0), Vec3.ZERO, 0, 0, Set.of(), TeleportTransition.DO_NOTHING));
         check(h, player.level() == h.getLevel() && player.getVehicle() != null && player.getVehicle().getUUID().equals(id),
                 "return from another dimension remounts the transferred entity");
         var returnedMount = player.getVehicle();
+        check(h, returnedMount.position().distanceToSqr(origin) < 0.01,
+                "cross-dimensional destination uses safe ground correction");
+        cfg.crossDimensionalTeleport = false;
+        player.teleport(new TeleportTransition(nether, new Vec3(0.5, 80, 0.5), Vec3.ZERO, 0, 0, Set.of(), TeleportTransition.DO_NOTHING));
+        check(h, player.level() == nether && player.getVehicle() == null && returnedMount.level() == h.getLevel(),
+                "disabled cross-dimensional carry leaves mount in original dimension");
+        player.teleport(new TeleportTransition(h.getLevel(), origin, Vec3.ZERO, 0, 0, Set.of(), TeleportTransition.DO_NOTHING));
+        cfg.crossDimensionalTeleport = true;
         player.stopRiding();
         RemountWatcher.cancel(player.getUUID());
         returnedMount.discard();
         cfg.checkSafety = true;
     }
 
+    private static void otherTeleports(GameTestHelper h, ServerPlayer player, Entity horse,
+                                       TpWithMeConfig cfg, Vec3 origin, Vec3 target) {
+        horse.snapTo(origin);
+        mount(player, horse);
+        h.setBlock(15, 1, 5, Blocks.SHORT_GRASS);
+        player.teleportTo(h.getLevel(), target.x, target.y + 0.37, target.z, Set.of(), 0, 0, true);
+        check(h, player.getVehicle() == horse && horse.position().distanceToSqr(target) < 0.01,
+                "command teleportTo path adjusts fractional destination through short grass");
+        h.setBlock(15, 1, 5, Blocks.AIR);
+
+        cfg.safetySearchRadius = 0;
+        mount(player, horse);
+        player.teleport(transition(player, origin.add(0, 0.37, 0)));
+        check(h, player.getVehicle() == null && horse.position().distanceToSqr(target) < 0.01,
+                "general teleport leaves mount behind when exact-only destination lacks support");
+
+        horse.snapTo(origin);
+        mount(player, horse);
+        h.setBlock(5, 1, 5, Blocks.SHORT_GRASS);
+        player.snapTo(origin.add(0, 1.6, 0));
+        var chorus = new net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect(0, true);
+        check(h, chorus.apply(h.getLevel(), net.minecraft.world.item.ItemStack.EMPTY, player)
+                        && player.getVehicle() == horse && horse.position().distanceToSqr(origin) < 0.01,
+                "chorus consume mixin lands through grass with exact-only safety");
+
+        h.setBlock(5, 1, 5, Blocks.STONE_SLAB);
+        player.snapTo(origin.add(0, 2.1, 0));
+        check(h, chorus.apply(h.getLevel(), net.minecraft.world.item.ItemStack.EMPTY, player)
+                        && player.getVehicle() == horse
+                        && horse.position().distanceToSqr(origin.add(0, 0.5, 0)) < 0.01,
+                "chorus consume mixin grounds on slab surface even with search disabled");
+        h.setBlock(5, 1, 5, Blocks.AIR);
+        h.setBlock(5, 0, 5, Blocks.GOLD_BLOCK);
+        Vec3 beforeDeniedChorus = horse.position();
+        check(h, !chorus.apply(h.getLevel(), net.minecraft.world.item.ItemStack.EMPTY, player)
+                        && horse.position().equals(beforeDeniedChorus),
+                "chorus respects datapack forbidden landing block tag");
+        h.setBlock(5, 0, 5, Blocks.STONE);
+        cfg.chorusFruitTeleport = false;
+        chorus.apply(h.getLevel(), net.minecraft.world.item.ItemStack.EMPTY, player);
+        check(h, player.getVehicle() == null && horse.position().equals(beforeDeniedChorus),
+                "disabled chorus carry uses vanilla dismount without general recapture");
+        cfg.chorusFruitTeleport = true;
+        cfg.safetySearchRadius = 2;
+        horse.snapTo(origin);
+    }
+
     private static void safety(GameTestHelper h, Entity horse, Vec3 origin) {
         check(h, SafetyChecker.isSafe(horse, h.getLevel(), origin), "clear ground destination is safe");
+        Vec3 fractional = origin.add(0, 0.37, 0);
+        check(h, origin.equals(SafetyChecker.findSafePosition(horse, h.getLevel(), fractional, 2)),
+                "search snaps fractional impact downward to nearest ground");
+        check(h, SafetyChecker.findSafePosition(horse, h.getLevel(), fractional, 0) == null,
+                "zero radius does not relocate an unsafe impact");
+        check(h, origin.equals(SafetyChecker.findSafePosition(horse, h.getLevel(), origin.add(0, -0.2, 0), 2)),
+                "search can move upward out of the impacted ground");
+        check(h, SafetyChecker.findSafePosition(horse, h.getLevel(), origin.add(0, 2.37, 0), 2) == null,
+                "search does not exceed the vertical radius to reach ground");
         h.setBlock(5, 1, 5, Blocks.STONE_SLAB);
         check(h, SafetyChecker.isSafe(horse, h.getLevel(), origin.add(0, 0.5, 0)), "slab top is safe using actual collision shape");
+        check(h, origin.add(0, 0.5, 0).equals(SafetyChecker.findSafePosition(horse, h.getLevel(), fractional, 2)),
+                "search discovers the actual slab surface");
         check(h, !SafetyChecker.isSafe(horse, h.getLevel(), origin), "intersecting slab is blocked");
         h.setBlock(5, 1, 5, Blocks.AIR);
+        for (int y = 1; y <= 5; y++) h.setBlock(5, y, 5, Blocks.STONE);
+        Vec3 besideWall = SafetyChecker.findSafePosition(horse, h.getLevel(), fractional, 2);
+        check(h, besideWall != null && SafetyChecker.isSafe(horse, h.getLevel(), besideWall)
+                        && besideWall.y == origin.y && besideWall.distanceToSqr(fractional) <= 8.0,
+                "blocked pearl impact finds safe ground beside the wall within radius");
+        for (int y = 1; y <= 5; y++) h.setBlock(5, y, 5, Blocks.AIR);
         var ghast = h.spawn(EntityTypes.HAPPY_GHAST, new Vec3(24, 7, 24));
         check(h, SafetyChecker.isSafe(ghast, h.getLevel(), ghast.position()), "flying mount does not require solid ground");
         ghast.discard();

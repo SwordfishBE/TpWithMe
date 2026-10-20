@@ -18,12 +18,14 @@ import net.minecraft.world.entity.monster.Strider;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.tpwithme.TpWithMe;
 import net.tpwithme.compat.OpenPartiesAndClaimsCompat;
 import net.tpwithme.config.TpWithMeConfig;
@@ -337,9 +339,11 @@ public final class TeleportHandler {
         while (!foundGround && scanPos.getY() > level.getMinY()) {
             BlockPos below = scanPos.below();
             BlockState belowState = level.getBlockState(below);
-            if (belowState.entityCanStandOn(level, below, vehicle)) {
+            var shape = belowState.getCollisionShape(level, below, CollisionContext.of(vehicle));
+            if (!shape.isEmpty()) {
+                if (belowState.is(BlockTags.CONSUMABLE_DOES_NOT_TELEPORT_TO)) return null;
                 foundGround = true;
-                adjustedY = below.getY() + 1.0D;
+                adjustedY = below.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
             } else {
                 adjustedY -= 1.0D;
                 scanPos = below;
@@ -363,6 +367,9 @@ public final class TeleportHandler {
         if (level.containsAnyLiquid(vehicleBox)) {
             return null;
         }
+        // Nearby adjustment must not move the landing onto a chorus-forbidden block.
+        if (level.getBlockState(BlockPos.containing(mountPos.x, mountPos.y - 1.0E-7, mountPos.z))
+                .is(BlockTags.CONSUMABLE_DOES_NOT_TELEPORT_TO)) return null;
 
         return mountPos;
     }

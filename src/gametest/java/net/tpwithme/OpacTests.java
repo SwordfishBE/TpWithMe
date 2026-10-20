@@ -53,9 +53,17 @@ final class OpacTests {
 
             Vec3 oldHorsePos = horse.position();
             mount(player, horse);
+            player.teleport(transition(player, destination.add(0, 0.37, 0)));
+            check(h, player.getVehicle() == null && horse.position().equals(oldHorsePos),
+                    "OPAC denies general teleport carry after safe-ground adjustment");
+            mount(player, horse);
             TeleportHandler.handleMountedPearlTeleport(player, transition(player, destination));
             check(h, player.getVehicle() == null && horse.position().equals(oldHorsePos), "OPAC-denied mounted pearl keeps mount behind");
             check(h, player.position().distanceToSqr(destination) < 0.01, "OPAC-denied mount preserves vanilla player teleport");
+            mount(player, horse);
+            TeleportHandler.handleMountedPearlTeleport(player, transition(player, destination.add(0, 0.37, 0)));
+            check(h, player.getVehicle() == null && horse.position().equals(oldHorsePos),
+                    "OPAC still denies mount after fractional landing is adjusted to safe ground");
 
             config.tryToSet(PlayerConfigOptions.CLAIM_EXCEPTION_CHORUS_FRUIT, "E");
             config.tryToSet(pearl, "E");
@@ -68,6 +76,9 @@ final class OpacTests {
             mount(player, horse);
             TeleportHandler.handleMountedPearlTeleport(player, transition(player, destination));
             check(h, player.getVehicle() == horse && horse.position().distanceToSqr(destination) < 0.01, "OPAC-allowed mounted pearl carries mount");
+            TeleportHandler.handleMountedPearlTeleport(player, transition(player, destination.add(0, 0.37, 0)));
+            check(h, player.getVehicle() == horse && horse.position().distanceToSqr(destination) < 0.01,
+                    "OPAC-allowed fractional pearl carries mount to adjusted safe ground");
 
             config.tryToSet(PlayerConfigOptions.CLAIM_EXCEPTION_CHORUS_FRUIT, "N");
             check(h, Boolean.FALSE.equals(TeleportHandler.handleMountedChorusFruitTeleport(h.getLevel(), player, 0)), "mounted chorus respects OPAC deny");
@@ -85,6 +96,10 @@ final class OpacTests {
             for (TeleportType type : TeleportType.values()) {
                 check(h, OpenPartiesAndClaimsCompat.canTeleportInto(h.getLevel(), pos, player, type), "OPAC owner allowed: " + type);
             }
+            mount(player, horse);
+            player.teleport(transition(player, destination.add(0, 0.37, 0)));
+            check(h, player.getVehicle() == horse && horse.position().distanceToSqr(destination) < 0.01,
+                    "OPAC owner general teleport carries mount to corrected ground");
 
             // Fault injection exercises the same catch path as an incompatible reflective API.
             check(h, !OpenPartiesAndClaimsCompat.canTeleportInto(null, pos, player, TeleportType.GENERAL), "OPAC integration failure denies carry");
