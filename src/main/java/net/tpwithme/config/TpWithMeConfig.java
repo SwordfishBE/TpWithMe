@@ -18,7 +18,8 @@ public class TpWithMeConfig {
             .getConfigDir()
             .resolve("tpwithme.json");
 
-    private static TpWithMeConfig instance = new TpWithMeConfig();
+    private static volatile TpWithMeConfig instance = new TpWithMeConfig();
+    public static final int MAX_SAFETY_SEARCH_RADIUS = 4;
 
     private record LoadResult(TpWithMeConfig config, boolean shouldSave) {}
 
@@ -148,9 +149,7 @@ public class TpWithMeConfig {
             protectionDurationTicks = 0;
         }
 
-        if (safetySearchRadius < 0) {
-            safetySearchRadius = 0;
-        }
+        safetySearchRadius = Math.clamp(safetySearchRadius, 0, MAX_SAFETY_SEARCH_RADIUS);
 
         if (blacklistedEntities == null) {
             blacklistedEntities = new ArrayList<>();
@@ -205,7 +204,7 @@ public class TpWithMeConfig {
         appendComment(sb, "Duration of the post-teleport protection in ticks. 20 ticks = 1 second.");
         appendProperty(sb, "protectionDurationTicks", config.protectionDurationTicks, true);
 
-        appendComment(sb, "Search radius in blocks for a nearby safe position when the exact destination is blocked.");
+        appendComment(sb, "Search radius in blocks for a nearby safe position (0-4; larger values are clamped).");
         appendComment(sb, "Set to 0 to disable nearby searching and only test the exact destination.");
         appendProperty(sb, "safetySearchRadius", config.safetySearchRadius, true);
 

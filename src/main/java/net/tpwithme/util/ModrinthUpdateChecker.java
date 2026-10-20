@@ -27,9 +27,6 @@ public final class ModrinthUpdateChecker {
     private static final String FABRIC = "fabric";
     private static final String MINECRAFT_MOD_ID = "minecraft";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(REQUEST_TIMEOUT)
-            .build();
     private static final AtomicBoolean CHECK_STARTED = new AtomicBoolean(false);
 
     private ModrinthUpdateChecker() {
@@ -54,8 +51,8 @@ public final class ModrinthUpdateChecker {
                 .GET()
                 .build();
 
-        try {
-            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        try (HttpClient client = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()) {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 TpWithMe.LOGGER.debug("{} Update check returned HTTP {}.", TpWithMe.prefix(), response.statusCode());
                 return;
@@ -94,7 +91,6 @@ public final class ModrinthUpdateChecker {
 
         JsonArray versions = root.getAsJsonArray();
         VersionCandidate newestCompatibleRelease = null;
-        VersionCandidate newestRelease = null;
 
         for (JsonElement versionElement : versions) {
             if (!versionElement.isJsonObject()) {
@@ -118,7 +114,6 @@ public final class ModrinthUpdateChecker {
             }
 
             VersionCandidate candidate = new VersionCandidate(versionNumber, publishedAt);
-            newestRelease = newestOf(newestRelease, candidate);
 
             if (jsonArrayContains(versionObject, "loaders", FABRIC)
                     && jsonArrayContains(versionObject, "game_versions", minecraftVersion)) {
@@ -126,7 +121,7 @@ public final class ModrinthUpdateChecker {
             }
         }
 
-        return Optional.ofNullable(newestCompatibleRelease != null ? newestCompatibleRelease : newestRelease);
+        return Optional.ofNullable(newestCompatibleRelease);
     }
 
     private static String getString(JsonObject object, String key) {

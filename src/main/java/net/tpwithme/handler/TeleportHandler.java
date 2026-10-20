@@ -72,41 +72,46 @@ public final class TeleportHandler {
     private static final Set<UUID> currentlyTeleporting =
             Collections.synchronizedSet(new HashSet<>());
 
-    private record PendingData(Entity vehicle) {}
-
-    private static final Map<UUID, PendingData> pendingTeleports =
-            Collections.synchronizedMap(new HashMap<>());
+    private static final Set<UUID> suppressedPlayers = new HashSet<>();
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
     /**
-     * Called at HEAD of player's teleport.
+     * Called before the player's teleport by the invocation-scoped wrapper.
      * Only checks eligibility (supported type, blacklist, saddle, permissions, cross-dim).
      * Safety and border checks are done in onPostTeleport AFTER the player
-     * arrives, because destination chunks are not yet loaded at HEAD time.
+     * arrives, because destination chunks may not yet be loaded before teleporting.
      */
-    public static void onPreTeleport(ServerPlayer player, ServerLevel targetLevel, Vec3 targetPos) {
-        Entity vehicle = getEligibleVehicle(player, targetLevel);
-        if (vehicle == null) return;
+    public static Entity captureVehicle(ServerPlayer player, ServerLevel targetLevel) {
+        return suppressedPlayers.contains(player.getUUID()) ? null : getEligibleVehicle(player, targetLevel);
+    }
 
-        pendingTeleports.put(player.getUUID(), new PendingData(vehicle));
-        TpWithMe.LOGGER.debug("{} Pre-teleport: captured {} for player {}.",
-                TpWithMe.prefix(),
-                vehicle.getType().toShortString(), player.getName().getString());
+    private static ServerPlayer teleportWithoutMount(ServerPlayer player, TeleportTransition transition) {
+        boolean added = suppressedPlayers.add(player.getUUID());
+        try {
+            return player.teleport(transition);
+        } finally {
+            if (added) suppressedPlayers.remove(player.getUUID());
+        }
+    }
+
+    public static void clearState() {
+        suppressedPlayers.clear();
+        currentlyTeleporting.clear();
     }
 
     public static ServerPlayer handleMountedPearlTeleport(ServerPlayer player, TeleportTransition original) {
         if (!TpWithMeConfig.get().enderPearlTeleport) {
-            return player.teleport(original);
+            return teleportWithoutMount(player, original);
         }
 
         if (!PermissionManager.canEnderPearlTeleport(player)) {
-            return player.teleport(original);
+            return teleportWithoutMount(player, original);
         }
 
         Entity vehicle = getEligibleVehicle(player, original.newLevel());
         if (vehicle == null) {
-            return player.teleport(original);
+            return teleportWithoutMount(player, original);
         }
 
         Vec3 mountPos = original.position();
@@ -120,13 +125,13 @@ public final class TeleportHandler {
             }
         }
 
-        if (!canTeleportMountIntoClaim(player, original.newLevel(), mountPos, OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL)) {
+        if (!canEnterDestination(player, vehicle, original.newLevel(), mountPos, OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL)) {
             player.sendSystemMessage(Component.literal(
                     "[TpWithMe] Open Parties and Claims blocks mounted ender pearl entry into this claim."));
-            return player.teleport(original);
+            return teleportWithoutMount(player, original);
         }
 
-        Entity newVehicle = teleportVehicleRoot(player, vehicle, original.newLevel(), mountPos);
+        Entity newVehicle = teleportVehicleRoot(player, vehicle, original.newLevel(), mountPos, OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL);
         return newVehicle != null ? player : null;
     }
 
@@ -161,12 +166,12 @@ public final class TeleportHandler {
                 continue;
             }
 
-            if (!canTeleportMountIntoClaim(player, level, mountPos, OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT)) {
+            if (!canEnterDestination(player, vehicle, level, mountPos, OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT)) {
                 opacBlockedDestination = true;
                 continue;
             }
 
-            Entity newVehicle = teleportVehicleRoot(player, vehicle, level, mountPos);
+            Entity newVehicle = teleportVehicleRoot(player, vehicle, level, mountPos, OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT);
             if (newVehicle == null) {
                 continue;
             }
@@ -186,11 +191,9 @@ public final class TeleportHandler {
         return false;
     }
 
-    public static void onPostTeleport(ServerPlayer player, ServerLevel targetLevel, Vec3 targetPos) {
-        PendingData data = pendingTeleports.remove(player.getUUID());
-        if (data == null) return;
-
-        Entity vehicle = data.vehicle;
+    public static void onPostTeleport(ServerPlayer player, Entity vehicle, ServerLevel targetLevel, Vec3 targetPos) {
+        if (!vehicle.isAlive() || vehicle.isRemoved() || !player.isAlive() || !TpWithMeConfig.get().enabled) return;
+        boolean crossDimensional = vehicle.level() != targetLevel;
 
         // World border check
         WorldBorder border = targetLevel.getWorldBorder();
@@ -217,7 +220,7 @@ public final class TeleportHandler {
             }
         }
 
-        if (!canTeleportMountIntoClaim(player, targetLevel, mountPos, OpenPartiesAndClaimsCompat.TeleportType.GENERAL)) {
+        if (!canEnterDestination(player, vehicle, targetLevel, mountPos, OpenPartiesAndClaimsCompat.TeleportType.GENERAL)) {
             player.sendSystemMessage(Component.literal(
                     "[TpWithMe] Open Parties and Claims blocks your mount from entering this claim."));
             return;
@@ -262,16 +265,12 @@ public final class TeleportHandler {
                         player.getName().getString(), newVehicle.getType().toShortString());
                 // Schedule a check a few ticks later to catch post-teleport dismounts
                 // (e.g. Minecraft forces a dismount on the next tick due to block collision).
-                RemountWatcher.schedule(player, newVehicle.getUUID());
+                RemountWatcher.schedule(player, newVehicle, OpenPartiesAndClaimsCompat.TeleportType.GENERAL, crossDimensional);
             }
 
         } finally {
             currentlyTeleporting.remove(vehicleId);
         }
-    }
-
-    public static void cancelPending(UUID playerUUID) {
-        pendingTeleports.remove(playerUUID);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -281,7 +280,10 @@ public final class TeleportHandler {
         return id != null && SUPPORTED_ENTITY_IDS.contains(id.toString());
     }
 
-    private static Entity teleportVehicleRoot(ServerPlayer player, Entity vehicle, ServerLevel targetLevel, Vec3 mountPos) {
+    private static Entity teleportVehicleRoot(ServerPlayer player, Entity vehicle, ServerLevel targetLevel, Vec3 mountPos,
+                                             OpenPartiesAndClaimsCompat.TeleportType type) {
+        RemountWatcher.cancel(player.getUUID());
+        boolean crossDimensional = vehicle.level() != targetLevel;
         UUID vehicleId = vehicle.getUUID();
         currentlyTeleporting.add(vehicleId);
 
@@ -315,7 +317,7 @@ public final class TeleportHandler {
                         newVehicle.getType().toShortString());
             }
 
-            RemountWatcher.schedule(player, newVehicle.getUUID());
+            RemountWatcher.schedule(player, newVehicle, type, crossDimensional);
             return newVehicle;
         } finally {
             currentlyTeleporting.remove(vehicleId);
@@ -337,6 +339,7 @@ public final class TeleportHandler {
             BlockState belowState = level.getBlockState(below);
             if (belowState.entityCanStandOn(level, below, vehicle)) {
                 foundGround = true;
+                adjustedY = below.getY() + 1.0D;
             } else {
                 adjustedY -= 1.0D;
                 scanPos = below;
@@ -408,16 +411,38 @@ public final class TeleportHandler {
         return vehicle;
     }
 
-    private static boolean canTeleportMountIntoClaim(
+    public static boolean canRecoverMount(ServerPlayer player, Entity vehicle,
+                                          OpenPartiesAndClaimsCompat.TeleportType type, boolean crossDimensional) {
+        var config = TpWithMeConfig.get();
+        if (!config.enabled || !PermissionManager.canUse(player) || !vehicle.isAlive() || vehicle.isRemoved()
+                || !isSupportedType(vehicle) || isBlacklisted(vehicle)
+                || (config.requireSaddle && !hasSaddle(vehicle))) return false;
+        if (crossDimensional && (!config.crossDimensionalTeleport || !PermissionManager.canCrossDimensionalTeleport(player))) return false;
+        if (type == OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL
+                && (!config.enderPearlTeleport || !PermissionManager.canEnderPearlTeleport(player))) return false;
+        if (type == OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT
+                && (!config.chorusFruitTeleport || !PermissionManager.canChorusFruitTeleport(player))) return false;
+        return canEnterDestination(player, vehicle, player.level(), vehicle.position(), type)
+                && (!config.checkSafety || SafetyChecker.isSafe(vehicle, player.level(), vehicle.position()));
+    }
+
+    private static boolean canEnterDestination(
             ServerPlayer player,
+            Entity vehicle,
             ServerLevel level,
             Vec3 pos,
             OpenPartiesAndClaimsCompat.TeleportType teleportType
     ) {
-        if (!TpWithMeConfig.get().respectOpenPartiesAndClaims) {
-            return true;
+        if (!SafetyChecker.isWithinBounds(vehicle, level, pos)) return false;
+        if (!TpWithMeConfig.get().respectOpenPartiesAndClaims) return true;
+        AABB box = vehicle.getDimensions(Pose.STANDING).makeBoundingBox(pos);
+        // A large mount can overlap claims even when its center is outside them.
+        for (int x = Mth.floor(box.minX) >> 4; x <= (Mth.floor(Math.nextDown(box.maxX)) >> 4); x++) {
+            for (int z = Mth.floor(box.minZ) >> 4; z <= (Mth.floor(Math.nextDown(box.maxZ)) >> 4); z++) {
+                if (!OpenPartiesAndClaimsCompat.canTeleportInto(level, new BlockPos(x << 4, Mth.floor(pos.y), z << 4), player, teleportType)) return false;
+            }
         }
-        return OpenPartiesAndClaimsCompat.canTeleportInto(level, BlockPos.containing(pos), player, teleportType);
+        return true;
     }
 
     private static boolean isBlacklisted(Entity entity) {

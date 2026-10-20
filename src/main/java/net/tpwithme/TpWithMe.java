@@ -33,6 +33,7 @@ public class TpWithMe implements ModInitializer {
                 TpWithMeCommand.register(dispatcher));
 
         RemountWatcher.register();
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> net.tpwithme.compat.OpenPartiesAndClaimsCompat.reset());
         ServerLifecycleEvents.SERVER_STARTED.register(server -> ModrinthUpdateChecker.checkOnceAsync());
 
         LOGGER.info("[{}] Mod initialized. Version: {}", MOD_NAME, MOD_VERSION);

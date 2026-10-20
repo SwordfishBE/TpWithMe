@@ -85,6 +85,7 @@ final class TpWithMeClothConfigScreen {
         safety.addEntry(entries.startIntField(Component.literal("Safety Search Radius"), config.safetySearchRadius)
                 .setDefaultValue(2)
                 .setMin(0)
+                .setMax(TpWithMeConfig.MAX_SAFETY_SEARCH_RADIUS)
                 .setTooltip(Component.literal("How many blocks around the destination to search for a safe fallback spot."))
                 .setSaveConsumer(value -> config.safetySearchRadius = value)
                 .build());

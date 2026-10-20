@@ -1,109 +1,72 @@
 package net.tpwithme.handler;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.portal.TeleportTransition;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.tpwithme.TpWithMe;
+import net.tpwithme.compat.OpenPartiesAndClaimsCompat.TeleportType;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-/**
- * Watches for post-teleport dismounts.
- *
- * Problem: SafetyChecker passes, vehicle is teleported, startRiding() succeeds,
- * but Minecraft detects a block collision on the next tick and forces a dismount.
- * The player and vehicle are now separated at the same location.
- *
- * Solution: 2 ticks after teleport, check if the player is still mounted on
- * the expected vehicle. If not (dismounted), teleport the vehicle to the
- * player's current position and attempt remount again.
- */
+/** ID-only recovery queue; recovery never teleports a mount. */
 public final class RemountWatcher {
-
     private RemountWatcher() {}
 
-    private record PendingCheck(ServerPlayer player, UUID vehicleId, int ticksLeft) {}
+    private record PendingCheck(UUID vehicleId, ResourceKey<Level> dimension, Vec3 vehiclePos,
+                                Vec3 playerPos, TeleportType type, boolean crossDimensional, int dueTick) {}
 
-    private static final List<PendingCheck> pending =
-            Collections.synchronizedList(new ArrayList<>());
+    private static final Map<UUID, PendingCheck> pending = new HashMap<>();
 
-    /** Call this from TeleportHandler after a successful startRiding(). */
-    public static void schedule(ServerPlayer player, UUID vehicleId) {
-        pending.add(new PendingCheck(player, vehicleId, 3));
+    public static void schedule(ServerPlayer player, Entity vehicle, TeleportType type, boolean crossDimensional) {
+        pending.put(player.getUUID(), new PendingCheck(vehicle.getUUID(), player.level().dimension(),
+                vehicle.position(), player.position(), type, crossDimensional, player.level().getServer().getTickCount() + 3));
     }
 
-    /** Register the tick listener once on mod init. */
+    public static void cancel(UUID playerId) {
+        pending.remove(playerId);
+    }
+
+    public static void clear() {
+        pending.clear();
+        TeleportHandler.clearState();
+    }
+
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(RemountWatcher::onTick);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> cancel(handler.player.getUUID()));
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> clear());
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> clear());
     }
 
     private static void onTick(MinecraftServer server) {
-        if (pending.isEmpty()) return;
-
-        List<PendingCheck> toProcess = new ArrayList<>(pending);
-        pending.clear();
-
-        for (PendingCheck check : toProcess) {
-            int newTicks = check.ticksLeft() - 1;
-
-            if (newTicks > 0) {
-                // Not yet – re-queue with decremented counter
-                pending.add(new PendingCheck(check.player(), check.vehicleId(), newTicks));
+        // Mount callbacks from other mods may schedule/cancel recovery during this loop.
+        for (UUID playerId : List.copyOf(pending.keySet())) {
+            PendingCheck check = pending.get(playerId);
+            if (check == null) continue;
+            ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+            if (player == null || !player.isAlive() || player.isRemoved() || player.isShiftKeyDown()
+                    || player.level().dimension() != check.dimension()
+                    || (player.getVehicle() != null && !player.getVehicle().getUUID().equals(check.vehicleId()))) {
+                pending.remove(playerId);
                 continue;
             }
-
-            // Time to check
-            ServerPlayer player = check.player();
-            if (!player.isAlive()) continue;
-
-            Entity currentVehicle = player.getVehicle();
-
-            if (currentVehicle != null && currentVehicle.getUUID().equals(check.vehicleId())) {
-                // Still mounted – all good
-                continue;
-            }
-
-            // Player was dismounted. Find the vehicle and move it to the player.
-            ServerLevel level = (ServerLevel) player.level();
-            Entity vehicle = level.getEntity(check.vehicleId());
-
-            if (vehicle == null) {
-                TpWithMe.LOGGER.warn("{} RemountWatcher: vehicle {} not found in {}.",
-                        TpWithMe.prefix(),
-                        check.vehicleId(), level.dimension());
-                continue;
-            }
-
-            TpWithMe.LOGGER.debug("{} RemountWatcher: player {} was dismounted; " +
-                    "moving vehicle to player and remounting.",
-                    TpWithMe.prefix(), player.getName().getString());
-
-            // Teleport vehicle to player's current position
-            Vec3 playerPos = player.position();
-            TeleportTransition transition = new TeleportTransition(
-                    level,
-                    playerPos,
-                    Vec3.ZERO,
-                    player.getYRot(),
-                    0.0f,
-                    Set.of(),
-                    TeleportTransition.DO_NOTHING
-            );
-            Entity newVehicle = vehicle.teleport(transition);
-
-            if (newVehicle != null) {
-                boolean success = player.startRiding(newVehicle, true, false);
-                if (success) {
-                    TpWithMe.LOGGER.debug("{} RemountWatcher: remount successful.", TpWithMe.prefix());
-                } else {
-                    TpWithMe.LOGGER.warn("{} RemountWatcher: remount failed; " +
-                            "vehicle is at player position but player is not riding.", TpWithMe.prefix());
-                }
-            }
+            if (server.getTickCount() < check.dueTick()) continue;
+            pending.remove(playerId);
+            if (player.getVehicle() != null) continue;
+            Entity vehicle = player.level().getEntity(check.vehicleId());
+            if (vehicle == null || !vehicle.getPassengers().isEmpty()
+                    || vehicle.position().distanceToSqr(check.vehiclePos()) > 1.0
+                    || player.position().distanceToSqr(check.playerPos()) > 4.0
+                    || !TeleportHandler.canRecoverMount(player, vehicle, check.type(), check.crossDimensional())) continue;
+            player.startRiding(vehicle, true, false);
         }
     }
 }

@@ -17,7 +17,7 @@ public final class PermissionManager {
             "tpwithme.chorusfruitteleport";
 
     private static boolean luckPermsInstalled;
-    private static boolean luckPermsActive;
+    private static volatile boolean luckPermsActive;
 
     private PermissionManager() {}
 

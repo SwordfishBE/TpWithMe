@@ -1,77 +1,32 @@
 package net.tpwithme.mixin;
 
-import net.minecraft.server.level.ServerLevel;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.portal.TeleportTransition;
-import net.tpwithme.TpWithMe;
+import net.tpwithme.handler.RemountWatcher;
 import net.tpwithme.handler.TeleportHandler;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.Unique;
 
-/**
- * Mixin on ServerPlayer#teleport(TeleportTransition).
- *
- * HEAD   → capture the current vehicle and perform cheap eligibility checks.
- *
- * RETURN → teleport the vehicle to the player's new position, run safety checks
- *          once the destination chunks are available, then remount.
- */
 @Mixin(ServerPlayer.class)
 public class EntityTeleportMixin {
+    @Unique
+    private long tpwithme$teleportSequence;
 
-    @Inject(
-            method = "teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/server/level/ServerPlayer;",
-            at = @At("HEAD")
-    )
-    private void tpwithme$preTeleport(
-            TeleportTransition transition,
-            CallbackInfoReturnable<ServerPlayer> cir
-    ) {
-        if (transition.asPassenger()) {
-            return;
-        }
-
+    @WrapMethod(method = "teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/server/level/ServerPlayer;")
+    private ServerPlayer tpwithme$teleport(TeleportTransition transition, Operation<ServerPlayer> original) {
+        if (transition.asPassenger()) return original.call(transition);
         ServerPlayer player = (ServerPlayer) (Object) this;
-        TpWithMe.LOGGER.debug("{} HEAD: teleport() called for player {}, vehicle={}",
-                TpWithMe.prefix(),
-                player.getName().getString(),
-                player.getVehicle() != null ? player.getVehicle().getType().toShortString() : "none");
-
-        ServerLevel targetLevel = transition.newLevel();
-        TeleportHandler.onPreTeleport(player, targetLevel, transition.position());
-    }
-
-    @Inject(
-            method = "teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/server/level/ServerPlayer;",
-            at = @At("RETURN")
-    )
-    private void tpwithme$postTeleport(
-            TeleportTransition transition,
-            CallbackInfoReturnable<ServerPlayer> cir
-    ) {
-        if (transition.asPassenger()) {
-            return;
+        RemountWatcher.cancel(player.getUUID());
+        long sequence = ++tpwithme$teleportSequence;
+        // Captured entities live only on this invocation's stack, including on exceptions.
+        Entity vehicle = TeleportHandler.captureVehicle(player, transition.newLevel());
+        ServerPlayer returned = original.call(transition);
+        if (returned != null && vehicle != null && sequence == tpwithme$teleportSequence) {
+            TeleportHandler.onPostTeleport(returned, vehicle, returned.level(), returned.position());
         }
-
-        ServerPlayer returned = cir.getReturnValue();
-
-        if (returned == null) {
-            ServerPlayer self = (ServerPlayer) (Object) this;
-            TpWithMe.LOGGER.debug("{} RETURN: null; cancelling pending for {}",
-                    TpWithMe.prefix(),
-                    self.getName().getString());
-            TeleportHandler.cancelPending(self.getUUID());
-            return;
-        }
-
-        TpWithMe.LOGGER.debug("{} RETURN: teleport() finished for player {}",
-                TpWithMe.prefix(),
-                returned.getName().getString());
-
-        ServerLevel newLevel = transition.newLevel();
-        TeleportHandler.onPostTeleport(returned, newLevel, transition.position());
+        return returned;
     }
 }

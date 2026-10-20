@@ -1,6 +1,7 @@
 package net.tpwithme.compat;
 
 import net.minecraft.core.BlockPos;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.tpwithme.TpWithMe;
@@ -27,16 +28,23 @@ public final class OpenPartiesAndClaimsCompat {
             "claims.protection.exceptions.groups.entity.barrier.Ender_Pearls";
 
     private static boolean loggedFailure;
+    private static final boolean INSTALLED = FabricLoader.getInstance().isModLoaded("openpartiesandclaims");
+
+    public static void reset() {
+        loggedFailure = false;
+    }
 
     private OpenPartiesAndClaimsCompat() {
     }
 
     public static boolean canTeleportInto(ServerLevel world, BlockPos pos, ServerPlayer player, TeleportType teleportType) {
+        if (!INSTALLED) return true;
+        if (loggedFailure) return false;
         try {
             Class<?> serverApiClass = Class.forName(SERVER_API_CLASS);
             Object api = invokeStaticByNameAndArgCount(serverApiClass, "get", 1, world.getServer());
             if (api == null) {
-                return true;
+                throw new IllegalStateException("OPAC server API is not initialized");
             }
 
             Object claimsManager = api.getClass().getMethod("getServerClaimsManager").invoke(api);
@@ -46,7 +54,7 @@ public final class OpenPartiesAndClaimsCompat {
             }
 
             Object protection = api.getClass().getMethod("getChunkProtection").invoke(api);
-            Object claimConfig = getClaimConfig(protection, claim);
+            Object claimConfig = getClaimConfig(protection, claim, world.dimension().identifier());
             if (hasChunkAccess(protection, claimConfig, player)) {
                 return true;
             }
@@ -56,15 +64,13 @@ public final class OpenPartiesAndClaimsCompat {
                 case ENDER_PEARL -> allowsEnderPearl(api, protection, claimConfig, player);
                 case GENERAL -> false;
             };
-        } catch (ClassNotFoundException e) {
-            return true;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
             if (!loggedFailure) {
                 loggedFailure = true;
-                TpWithMe.LOGGER.warn("{} Open Parties and Claims protection checks failed. TpWithMe will not use OPAC claim rules until this is fixed.",
+                TpWithMe.LOGGER.warn("{} Open Parties and Claims protection checks failed. Mount carry is blocked until the server restarts or OPAC support is explicitly disabled in the config.",
                         TpWithMe.prefix(), e);
             }
-            return true;
+            return false;
         }
     }
 
@@ -77,7 +83,7 @@ public final class OpenPartiesAndClaimsCompat {
 
         Object v1Option = getStaticFieldIfPresent(PLAYER_CONFIG_OPTIONS_V1_CLASS, CHORUS_PROTECTION_FIELD);
         if (v1Option == null) {
-            return true;
+            throw new NoSuchFieldException("No supported OPAC chorus fruit option");
         }
 
         boolean protectedAgainst = invokeBooleanByNameAndArgCount(
@@ -105,11 +111,15 @@ public final class OpenPartiesAndClaimsCompat {
         return invokeBooleanByNameAndArgCount(protection, "checkPlayerGroupExceptionOption", 3, option, claimConfig, player);
     }
 
-    private static Object getClaimConfig(Object protection, Object claim) throws ReflectiveOperationException {
+    private static Object getClaimConfig(Object protection, Object claim, Object dimension) throws ReflectiveOperationException {
         try {
-            return invokeByNameAndArgCount(protection, "getConfig", 1, claim);
+            return invokeByNameAndArgCount(protection, "getConfig", 2, claim, dimension);
         } catch (NoSuchMethodException e) {
-            return invokeByNameAndArgCount(protection, "getClaimConfig", 1, claim);
+            try {
+                return invokeByNameAndArgCount(protection, "getConfig", 1, claim);
+            } catch (NoSuchMethodException legacy) {
+                return invokeByNameAndArgCount(protection, "getClaimConfig", 1, claim);
+            }
         }
     }
 
