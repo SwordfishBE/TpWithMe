@@ -34,8 +34,12 @@ public final class RemountWatcher {
     }
 
     public static void cancel(UUID playerId) {
-        pending.remove(playerId);
+        cancelRecovery(playerId);
         PendingMountTeleports.cancel(playerId);
+    }
+
+    public static void cancelRecovery(UUID playerId) {
+        pending.remove(playerId);
     }
 
     public static void clear() {

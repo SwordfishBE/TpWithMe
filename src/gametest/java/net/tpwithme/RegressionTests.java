@@ -269,6 +269,35 @@ public class RegressionTests {
         PendingMountTeleports.tick(server);
         check(h, waiting.isEmpty() && horse.position().equals(origin),
                 "expired terrain wait clears request without moving mount");
+        java.util.UUID missingId = java.util.UUID.randomUUID();
+        ((Map<java.util.UUID, Object>) waiting).put(player.getUUID(), constructor.newInstance(
+                missingId, level.dimension(), level.dimension(), origin, destination, Set.of(), server.getTickCount() + 100));
+        PendingMountTeleports.tick(server);
+        check(h, waiting.size() == 1, "temporarily unavailable mount does not immediately cancel terrain wait");
+        int originalDeadline = field(waiting.values().iterator().next().getClass(), "deadline")
+                .getInt(waiting.values().iterator().next());
+        player.teleport(transition(player, origin));
+        check(h, waiting.size() == 1 && PendingMountTeleports.isWaitingForMount(player),
+                "new teleport preserves unresolved mount wait at latest destination");
+        check(h, field(waiting.values().iterator().next().getClass(), "deadline")
+                        .getInt(waiting.values().iterator().next()) == originalDeadline,
+                "retargeting unresolved mount does not extend original deadline");
+        ((Map<java.util.UUID, Object>) waiting).put(player.getUUID(), constructor.newInstance(
+                missingId, level.dimension(), level.dimension(), origin, origin, Set.of(), server.getTickCount()));
+        PendingMountTeleports.tick(server);
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty(), "unavailable mount still expires once without an unbounded wait");
+        ((Map<java.util.UUID, Object>) waiting).put(player.getUUID(), constructor.newInstance(
+                missingId, level.dimension(), level.dimension(), origin, origin, Set.of(), server.getTickCount() + 100));
+        boolean oldPearl = TpWithMeConfig.get().enderPearlTeleport;
+        try {
+            TpWithMeConfig.get().enderPearlTeleport = false;
+            TeleportHandler.handleMountedPearlTeleport(player, transition(player, origin));
+            check(h, waiting.isEmpty(), "disabled pearl fallback cannot retarget an unresolved general mount wait");
+        } finally {
+            TpWithMeConfig.get().enderPearlTeleport = oldPearl;
+        }
+        player.snapTo(destination);
         PendingMountTeleports.schedule(player, horse, destination);
         // Test setup loads the chunks; the production queue must never do this itself.
         for (int x = chunk.getX() - 4; x <= chunk.getX() + 4; x++) {
@@ -285,13 +314,25 @@ public class RegressionTests {
                 "mount follows once flat negative-coordinate home with dry grass becomes ready");
         player.stopRiding();
         player.snapTo(destination);
-        // Block placement made terrain readable; make its entities visible for this new source fixture too.
+        // Hidden sections still contain loaded mounts but the public UUID lookup cannot see them.
         var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<Entity>)
                 field(net.minecraft.server.level.ServerLevel.class, "entityManager").get(level);
         manager.updateChunkStatus(new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
-                net.minecraft.world.level.entity.Visibility.TICKING);
+                net.minecraft.world.level.entity.Visibility.HIDDEN);
+        PendingMountTeleports.schedule(player, horse, destination);
+        check(h, level.getEntity(horse.getUUID()) == null && !horse.isRemoved(),
+                "hidden source mount remains loaded but absent from public UUID lookup");
+        check(h, PendingMountTeleports.captureForTeleport(player) == horse,
+                "rapid teleport resolves loaded mount in hidden source section");
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty() && player.getVehicle() == horse,
+                "terrain wait completes with loaded mount in hidden source section");
+        player.stopRiding();
+        player.snapTo(destination);
         PendingMountTeleports.schedule(player, horse, destination);
         player.teleport(transition(player, origin));
+        manager.updateChunkStatus(new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
+                net.minecraft.world.level.entity.Visibility.TICKING);
         check(h, waiting.isEmpty() && player.getVehicle() == horse,
                 "another teleport completes pending mount transfer at the latest loaded destination");
         player.stopRiding();

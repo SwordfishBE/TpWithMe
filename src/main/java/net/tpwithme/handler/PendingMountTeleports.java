@@ -9,6 +9,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.config.TpWithMeConfig;
 import net.tpwithme.util.SafetyChecker;
+import net.tpwithme.util.LoadedMountLookup;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,17 +41,35 @@ public final class PendingMountTeleports {
     /** Resolve a still-valid terrain wait before a new teleport replaces its destination. */
     public static Entity captureForTeleport(ServerPlayer player) {
         Pending request = pending.get(player.getUUID());
-        if (request == null || player.getVehicle() != null || player.isShiftKeyDown()
-                || !player.isAlive() || player.isRemoved()
-                || player.level().dimension() != request.targetDimension()
-                || player.position().distanceToSqr(request.targetPos()) > 4.0
-                || player.level().getServer().getTickCount() >= request.deadline()) return null;
+        if (!isCurrentRequest(player, request)) return null;
         var source = player.level().getServer().getLevel(request.sourceDimension());
-        Entity vehicle = source == null ? null : source.getEntity(request.vehicleId());
+        Entity vehicle = LoadedMountLookup.find(source, request.vehicleId(), request.sourcePos());
         return vehicle != null && vehicle.isAlive() && !vehicle.isRemoved()
                 && vehicle.position().distanceToSqr(request.sourcePos()) <= 1.0
                 && TeleportHandler.getOtherPassengerIds(vehicle, player.getUUID()).equals(request.passengerIds())
                 ? vehicle : null;
+    }
+
+    private static boolean isCurrentRequest(ServerPlayer player, Pending request) {
+        return request != null && player.getVehicle() == null && !player.isShiftKeyDown()
+                && player.isAlive() && !player.isRemoved() && TpWithMeConfig.get().enabled
+                && player.level().dimension() == request.targetDimension()
+                && player.position().distanceToSqr(request.targetPos()) <= 4.0
+                && player.level().getServer().getTickCount() < request.deadline();
+    }
+
+    public static boolean isWaitingForMount(ServerPlayer player) {
+        Pending request = pending.get(player.getUUID());
+        if (!isCurrentRequest(player, request)) return false;
+        var source = player.level().getServer().getLevel(request.sourceDimension());
+        return LoadedMountLookup.find(source, request.vehicleId(), request.sourcePos()) == null;
+    }
+
+    public static void retarget(ServerPlayer player) {
+        Pending request = pending.get(player.getUUID());
+        if (request == null) return;
+        pending.put(player.getUUID(), new Pending(request.vehicleId(), request.sourceDimension(),
+                player.level().dimension(), request.sourcePos(), player.position(), request.passengerIds(), request.deadline()));
     }
 
     public static void clear() {
@@ -71,24 +90,25 @@ public final class PendingMountTeleports {
                 continue;
             }
             var source = server.getLevel(request.sourceDimension());
-            Entity vehicle = source == null ? null : source.getEntity(request.vehicleId());
-            if (vehicle == null || !vehicle.isAlive() || vehicle.isRemoved()
+            if (server.getTickCount() >= request.deadline()) {
+                pending.remove(playerId);
+                player.sendSystemMessage(Component.literal(
+                        "[TpWithMe] Mount transfer timed out while waiting for terrain or your mount to become available."));
+                continue;
+            }
+            Entity vehicle = LoadedMountLookup.find(source, request.vehicleId(), request.sourcePos());
+            if (vehicle == null) continue;
+            if (!vehicle.isAlive() || vehicle.isRemoved()
                     || vehicle.position().distanceToSqr(request.sourcePos()) > 1.0) {
                 pending.remove(playerId);
                 player.sendSystemMessage(Component.literal(
-                        "[TpWithMe] Your mount moved or is no longer loaded where you left it - transfer canceled."));
+                        "[TpWithMe] Your mount moved away or is no longer alive - transfer canceled."));
                 continue;
             }
             if (!TeleportHandler.getOtherPassengerIds(vehicle, playerId).equals(request.passengerIds())) {
                 pending.remove(playerId);
                 player.sendSystemMessage(Component.literal(
                         "[TpWithMe] Passengers changed while waiting - your mount stayed behind."));
-                continue;
-            }
-            if (server.getTickCount() >= request.deadline()) {
-                pending.remove(playerId);
-                player.sendSystemMessage(Component.literal(
-                        "[TpWithMe] Destination terrain did not finish loading - your mount stayed behind."));
                 continue;
             }
             if (config.checkSafety) {

@@ -7,6 +7,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.tpwithme.handler.RemountWatcher;
 import net.tpwithme.handler.TeleportHandler;
+import net.tpwithme.handler.PendingMountTeleports;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -22,11 +23,20 @@ public class EntityTeleportMixin {
         long sequence = ++tpwithme$teleportSequence;
         // Captured entities live only on this invocation's stack, including on exceptions.
         Entity vehicle = TeleportHandler.captureVehicle(player, transition.newLevel());
-        RemountWatcher.cancel(player.getUUID());
-        ServerPlayer returned = original.call(transition);
-        if (returned != null && vehicle != null && sequence == tpwithme$teleportSequence) {
-            TeleportHandler.onPostTeleport(returned, vehicle, returned.level(), returned.position());
+        boolean waiting = vehicle == null && PendingMountTeleports.isWaitingForMount(player);
+        if (waiting) RemountWatcher.cancelRecovery(player.getUUID());
+        else RemountWatcher.cancel(player.getUUID());
+        boolean completed = false;
+        try {
+            ServerPlayer returned = original.call(transition);
+            if (returned != null && sequence == tpwithme$teleportSequence) {
+                if (waiting) PendingMountTeleports.retarget(returned);
+                else if (vehicle != null) TeleportHandler.onPostTeleport(returned, vehicle, returned.level(), returned.position());
+            }
+            completed = returned != null;
+            return returned;
+        } finally {
+            if (waiting && !completed && sequence == tpwithme$teleportSequence) PendingMountTeleports.cancel(player.getUUID());
         }
-        return returned;
     }
 }

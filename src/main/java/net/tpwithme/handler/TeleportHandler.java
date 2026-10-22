@@ -93,6 +93,7 @@ public final class TeleportHandler {
     }
 
     private static ServerPlayer teleportWithoutMount(ServerPlayer player, TeleportTransition transition) {
+        RemountWatcher.cancel(player.getUUID());
         boolean added = suppressedPlayers.add(player.getUUID());
         try {
             return player.teleport(transition);
