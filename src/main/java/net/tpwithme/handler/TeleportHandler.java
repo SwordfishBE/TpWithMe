@@ -397,6 +397,8 @@ public final class TeleportHandler {
             TpWithMe.LOGGER.debug("{} {} is blacklisted; skipping.",
                     TpWithMe.prefix(),
                     vehicle.getType().toShortString());
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] This mount is excluded by the entity blacklist - your mount stayed behind."));
             return false;
         }
 
@@ -404,6 +406,8 @@ public final class TeleportHandler {
             TpWithMe.LOGGER.debug("{} {} has no saddle; skipping.",
                     TpWithMe.prefix(),
                     vehicle.getType().toShortString());
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] Your mount needs its saddle or harness before it can teleport."));
             return false;
         }
 
@@ -411,6 +415,8 @@ public final class TeleportHandler {
             TpWithMe.LOGGER.debug("{} {} lacks permission {}; skipping.",
                     TpWithMe.prefix(),
                     player.getName().getString(), PermissionManager.USE_PERMISSION);
+            player.sendSystemMessage(Component.literal(
+                    "[TpWithMe] You don't have permission to teleport with your mount."));
             return false;
         }
 

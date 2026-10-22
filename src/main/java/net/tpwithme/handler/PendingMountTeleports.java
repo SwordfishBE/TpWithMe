@@ -59,6 +59,8 @@ public final class PendingMountTeleports {
             if (vehicle == null || !vehicle.isAlive() || vehicle.isRemoved()
                     || vehicle.position().distanceToSqr(request.sourcePos()) > 1.0) {
                 pending.remove(playerId);
+                player.sendSystemMessage(Component.literal(
+                        "[TpWithMe] Your mount moved or is no longer loaded where you left it - transfer canceled."));
                 continue;
             }
             if (!TeleportHandler.getOtherPassengerIds(vehicle, playerId).equals(request.passengerIds())) {

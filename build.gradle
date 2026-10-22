@@ -44,6 +44,15 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
     include(implementation("me.lucko:fabric-permissions-api:0.7.0"))
     gametestCompileOnly "maven.modrinth:open-parties-and-claims:KBCCg0os"
+    if (providers.gradleProperty('testEssentialCommands').isPresent()) {
+        gametestRuntimeOnly "maven.modrinth:essential-commands:KANmt7ie"
+    }
+    if (providers.gradleProperty('testC2me').isPresent()) {
+        gametestRuntimeOnly "maven.modrinth:c2me-fabric:gKKkuSYc"
+    }
+    if (providers.gradleProperty('testLeashedTeleportJar').isPresent()) {
+        gametestRuntimeOnly files(providers.gradleProperty('testLeashedTeleportJar').get())
+    }
     if (providers.gradleProperty('testOpac').isPresent()) {
         gametestRuntimeOnly "maven.modrinth:open-parties-and-claims:KBCCg0os"
         gametestRuntimeOnly "maven.modrinth:forge-config-api-port:JpKvrr9J"

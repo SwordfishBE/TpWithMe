@@ -133,6 +133,7 @@ public class RegressionTests {
         safety(h, horse, origin);
         coldDestination(h, player, horse, origin);
         configAndUpdates(h);
+        CamelTeleportRegressionTests.run(h, player, origin, target);
         MountedTeleportRegressionTests.run(h, player, horse, origin, target);
         if (FabricLoader.getInstance().isModLoaded("openpartiesandclaims")) {
             OpacTests.run(h, player, horse, target);
@@ -192,6 +193,7 @@ public class RegressionTests {
                         h.runAfterDelay(5, () -> {
                             check(h, player.getVehicle() == null && pending().isEmpty(), "intentional sneaking cancels recovery");
                             player.setShiftKeyDown(false);
+                            ChunkUnloadCompatibilityTests.run(h);
                             TpWithMe.LOGGER.info("TPWITHME REGRESSION ASSERTIONS PASSED: {} (OPAC={})", assertions,
                                     FabricLoader.getInstance().isModLoaded("openpartiesandclaims"));
                             h.succeed();
