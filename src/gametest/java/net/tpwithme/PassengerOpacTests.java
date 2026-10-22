@@ -81,6 +81,10 @@ final class PassengerOpacTests {
             PendingMountTeleports.tick(server);
             check(h, owner.getVehicle() == null && visitor.getVehicle() == camel,
                     "deferred carry checks second rider claim access");
+            PendingMountTeleports.schedule(owner, camel, destination);
+            owner.teleport(transition(owner, destination.add(0, 0.37, 0)));
+            check(h, owner.getVehicle() == null && visitor.getVehicle() == camel,
+                    "retargeted terrain wait still rejects OPAC-denied co-rider");
 
             defaults.tryToSet(PlayerConfigOptions.FULL_ACCESS, "E");
             ownerConfig.tryToSet(PlayerConfigOptions.FULL_ACCESS, "E");

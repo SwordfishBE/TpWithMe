@@ -249,6 +249,12 @@ public class RegressionTests {
                 "deferred safety check does not synchronously load terrain");
         PendingMountTeleports.tick(server);
         check(h, waiting.size() == 1, "pending mount waits while terrain is unavailable");
+        player.teleport(transition(player, origin));
+        check(h, player.getVehicle() == horse && waiting.isEmpty(),
+                "rapid return to A retains mount from pending cold B transfer");
+        player.teleport(transition(player, destination));
+        check(h, waiting.size() == 1 && horse.position().equals(origin),
+                "rapid B-A-B keeps latest cold destination queued");
         for (var component : waiting.values().iterator().next().getClass().getRecordComponents()) {
             check(h, !Entity.class.isAssignableFrom(component.getType())
                             && !net.minecraft.world.level.Level.class.isAssignableFrom(component.getType()),
@@ -258,6 +264,8 @@ public class RegressionTests {
         constructor.setAccessible(true);
         ((Map<java.util.UUID, Object>) waiting).put(player.getUUID(), constructor.newInstance(
                 horse.getUUID(), level.dimension(), level.dimension(), origin, destination, Set.of(), server.getTickCount()));
+        check(h, PendingMountTeleports.captureForTeleport(player) == null,
+                "new teleport cannot recover an expired terrain wait");
         PendingMountTeleports.tick(server);
         check(h, waiting.isEmpty() && horse.position().equals(origin),
                 "expired terrain wait clears request without moving mount");
@@ -277,9 +285,16 @@ public class RegressionTests {
                 "mount follows once flat negative-coordinate home with dry grass becomes ready");
         player.stopRiding();
         player.snapTo(destination);
+        // Block placement made terrain readable; make its entities visible for this new source fixture too.
+        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<Entity>)
+                field(net.minecraft.server.level.ServerLevel.class, "entityManager").get(level);
+        manager.updateChunkStatus(new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
+                net.minecraft.world.level.entity.Visibility.TICKING);
         PendingMountTeleports.schedule(player, horse, destination);
         player.teleport(transition(player, origin));
-        check(h, waiting.isEmpty(), "another teleport cancels a pending terrain wait");
+        check(h, waiting.isEmpty() && player.getVehicle() == horse,
+                "another teleport completes pending mount transfer at the latest loaded destination");
+        player.stopRiding();
         PendingMountTeleports.schedule(player, horse, origin);
         ServerPlayConnectionEvents.DISCONNECT.invoker().onPlayDisconnect(player.connection, server);
         check(h, waiting.isEmpty(), "disconnect clears pending terrain wait");
@@ -290,12 +305,16 @@ public class RegressionTests {
         player.snapTo(origin);
         PendingMountTeleports.schedule(player, horse, origin);
         player.snapTo(origin.add(3, 0, 0));
+        check(h, PendingMountTeleports.captureForTeleport(player) == null,
+                "new teleport cannot recover terrain wait after player walked away");
         PendingMountTeleports.tick(server);
         check(h, waiting.isEmpty() && player.getVehicle() == null,
                 "walking away cancels terrain wait without moving mount");
         player.snapTo(origin);
         PendingMountTeleports.schedule(player, horse, origin);
         horse.snapTo(origin.add(2, 0, 0));
+        check(h, PendingMountTeleports.captureForTeleport(player) == null,
+                "new teleport cannot recover a mount that moved away");
         PendingMountTeleports.tick(server);
         check(h, waiting.isEmpty() && player.getVehicle() == null,
                 "moved mount cancels terrain wait");

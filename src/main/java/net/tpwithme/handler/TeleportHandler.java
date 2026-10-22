@@ -86,7 +86,10 @@ public final class TeleportHandler {
      * arrives, because destination chunks may not yet be loaded before teleporting.
      */
     public static Entity captureVehicle(ServerPlayer player, ServerLevel targetLevel) {
-        return suppressedPlayers.contains(player.getUUID()) ? null : getEligibleVehicle(player, targetLevel);
+        if (suppressedPlayers.contains(player.getUUID())) return null;
+        Entity vehicle = player.getVehicle();
+        if (vehicle == null) vehicle = PendingMountTeleports.captureForTeleport(player);
+        return vehicle != null && isEligibleVehicle(player, vehicle, targetLevel) ? vehicle : null;
     }
 
     private static ServerPlayer teleportWithoutMount(ServerPlayer player, TeleportTransition transition) {

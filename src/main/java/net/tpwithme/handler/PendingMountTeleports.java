@@ -37,6 +37,22 @@ public final class PendingMountTeleports {
         pending.remove(playerId);
     }
 
+    /** Resolve a still-valid terrain wait before a new teleport replaces its destination. */
+    public static Entity captureForTeleport(ServerPlayer player) {
+        Pending request = pending.get(player.getUUID());
+        if (request == null || player.getVehicle() != null || player.isShiftKeyDown()
+                || !player.isAlive() || player.isRemoved()
+                || player.level().dimension() != request.targetDimension()
+                || player.position().distanceToSqr(request.targetPos()) > 4.0
+                || player.level().getServer().getTickCount() >= request.deadline()) return null;
+        var source = player.level().getServer().getLevel(request.sourceDimension());
+        Entity vehicle = source == null ? null : source.getEntity(request.vehicleId());
+        return vehicle != null && vehicle.isAlive() && !vehicle.isRemoved()
+                && vehicle.position().distanceToSqr(request.sourcePos()) <= 1.0
+                && TeleportHandler.getOtherPassengerIds(vehicle, player.getUUID()).equals(request.passengerIds())
+                ? vehicle : null;
+    }
+
     public static void clear() {
         pending.clear();
     }

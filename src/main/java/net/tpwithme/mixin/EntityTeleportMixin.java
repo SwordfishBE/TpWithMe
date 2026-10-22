@@ -19,10 +19,10 @@ public class EntityTeleportMixin {
     private ServerPlayer tpwithme$teleport(TeleportTransition transition, Operation<ServerPlayer> original) {
         if (transition.asPassenger()) return original.call(transition);
         ServerPlayer player = (ServerPlayer) (Object) this;
-        RemountWatcher.cancel(player.getUUID());
         long sequence = ++tpwithme$teleportSequence;
         // Captured entities live only on this invocation's stack, including on exceptions.
         Entity vehicle = TeleportHandler.captureVehicle(player, transition.newLevel());
+        RemountWatcher.cancel(player.getUUID());
         ServerPlayer returned = original.call(transition);
         if (returned != null && vehicle != null && sequence == tpwithme$teleportSequence) {
             TeleportHandler.onPostTeleport(returned, vehicle, returned.level(), returned.position());
