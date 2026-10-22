@@ -18,6 +18,7 @@ import net.tpwithme.compat.OpenPartiesAndClaimsCompat;
 import net.tpwithme.compat.OpenPartiesAndClaimsCompat.TeleportType;
 import net.tpwithme.config.TpWithMeConfig;
 import net.tpwithme.handler.RemountWatcher;
+import net.tpwithme.handler.PendingMountTeleports;
 import net.tpwithme.handler.TeleportHandler;
 import net.tpwithme.permission.PermissionManager;
 import net.tpwithme.util.ModrinthUpdateChecker;
@@ -30,6 +31,8 @@ import java.util.Set;
 
 public class RegressionTests {
     private static boolean permissionFixture;
+    static java.util.UUID permissionDeniedPlayer;
+    static String permissionDeniedNode;
     private static int assertions;
 
     @GameTest(structure = "tpwithme-test:arena", maxTicks = 200)
@@ -44,11 +47,20 @@ public class RegressionTests {
             try { field(TpWithMeConfig.class, "instance").set(null, oldConfig); }
             catch (Exception e) { throw new RuntimeException(e); }
             permissionFixture = false;
+            permissionDeniedPlayer = null;
+            permissionDeniedNode = null;
             PermissionManager.refreshState();
         });
-        PermissionCheckEvent.EVENT.register((source, permission) -> permissionFixture
-                ? (permission.equals(PermissionManager.USE_PERMISSION) ? TriState.TRUE : TriState.FALSE)
-                : TriState.DEFAULT);
+        PermissionCheckEvent.EVENT.register((source, permission) -> {
+            if (permissionDeniedPlayer != null) {
+                return source instanceof net.minecraft.commands.CommandSourceStack commandSource
+                        && commandSource.getEntity() instanceof ServerPlayer checked && checked.getUUID().equals(permissionDeniedPlayer)
+                        && permission.equals(permissionDeniedNode) ? TriState.FALSE : TriState.TRUE;
+            }
+            return permissionFixture
+                    ? (permission.equals(PermissionManager.USE_PERMISSION) ? TriState.TRUE : TriState.FALSE)
+                    : TriState.DEFAULT;
+        });
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) h.setBlock(x, 0, z, Blocks.STONE);
         ServerPlayer player = h.makeMockServerPlayerInLevel();
         h.runBeforeTestEnd(() -> h.getLevel().getServer().getPlayerList().remove(player));
@@ -119,9 +131,12 @@ public class RegressionTests {
         otherTeleports(h, player, horse, cfg, origin, target);
 
         safety(h, horse, origin);
+        coldDestination(h, player, horse, origin);
         configAndUpdates(h);
+        MountedTeleportRegressionTests.run(h, player, horse, origin, target);
         if (FabricLoader.getInstance().isModLoaded("openpartiesandclaims")) {
             OpacTests.run(h, player, horse, target);
+            PassengerOpacTests.run(h, player, origin, target);
         } else {
             check(h, OpenPartiesAndClaimsCompat.canTeleportInto(h.getLevel(), BlockPos.containing(target), player, TeleportType.GENERAL),
                     "OPAC absent permits normal operation");
@@ -212,6 +227,83 @@ public class RegressionTests {
     static Map<?, ?> pending() {
         try { return (Map<?, ?>) field(RemountWatcher.class, "pending").get(null); }
         catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void coldDestination(GameTestHelper h, ServerPlayer player, Entity horse, Vec3 origin) throws Exception {
+        var level = h.getLevel();
+        var server = level.getServer();
+        Vec3 destination = new Vec3(-Math.abs(origin.x) - 4096.3, 66, 153.3);
+        var chunk = BlockPos.containing(destination);
+        check(h, level.getChunkSource().getChunkNow(chunk.getX() >> 4, chunk.getZ() >> 4) == null,
+                "remote negative-coordinate home starts with unloaded terrain");
+        horse.snapTo(origin);
+        mount(player, horse);
+        player.teleport(transition(player, destination));
+        Map<?, ?> waiting = (Map<?, ?>) field(PendingMountTeleports.class, "pending").get(null);
+        check(h, waiting.size() == 1 && horse.position().equals(origin),
+                "cold home teleport queues mount instead of rejecting space");
+        check(h, level.getChunkSource().getChunkNow(chunk.getX() >> 4, chunk.getZ() >> 4) == null,
+                "deferred safety check does not synchronously load terrain");
+        PendingMountTeleports.tick(server);
+        check(h, waiting.size() == 1, "pending mount waits while terrain is unavailable");
+        for (var component : waiting.values().iterator().next().getClass().getRecordComponents()) {
+            check(h, !Entity.class.isAssignableFrom(component.getType())
+                            && !net.minecraft.world.level.Level.class.isAssignableFrom(component.getType()),
+                    "terrain wait stores values instead of world/entity references: " + component.getName());
+        }
+        var constructor = waiting.values().iterator().next().getClass().getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        ((Map<java.util.UUID, Object>) waiting).put(player.getUUID(), constructor.newInstance(
+                horse.getUUID(), level.dimension(), level.dimension(), origin, destination, Set.of(), server.getTickCount()));
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty() && horse.position().equals(origin),
+                "expired terrain wait clears request without moving mount");
+        PendingMountTeleports.schedule(player, horse, destination);
+        // Test setup loads the chunks; the production queue must never do this itself.
+        for (int x = chunk.getX() - 4; x <= chunk.getX() + 4; x++) {
+            for (int z = chunk.getZ() - 4; z <= chunk.getZ() + 4; z++) {
+                level.setBlockAndUpdate(new BlockPos(x, 65, z), Blocks.STONE.defaultBlockState());
+                for (int y = 66; y <= 72; y++) {
+                    level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        level.setBlockAndUpdate(BlockPos.containing(destination), Blocks.SHORT_DRY_GRASS.defaultBlockState());
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty() && player.getVehicle() == horse && horse.position().distanceToSqr(destination) < 0.01,
+                "mount follows once flat negative-coordinate home with dry grass becomes ready");
+        player.stopRiding();
+        player.snapTo(destination);
+        PendingMountTeleports.schedule(player, horse, destination);
+        player.teleport(transition(player, origin));
+        check(h, waiting.isEmpty(), "another teleport cancels a pending terrain wait");
+        PendingMountTeleports.schedule(player, horse, origin);
+        ServerPlayConnectionEvents.DISCONNECT.invoker().onPlayDisconnect(player.connection, server);
+        check(h, waiting.isEmpty(), "disconnect clears pending terrain wait");
+        PendingMountTeleports.schedule(player, horse, origin);
+        RemountWatcher.clear();
+        check(h, waiting.isEmpty(), "server lifecycle cleanup clears pending terrain wait");
+        horse.snapTo(origin);
+        player.snapTo(origin);
+        PendingMountTeleports.schedule(player, horse, origin);
+        player.snapTo(origin.add(3, 0, 0));
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty() && player.getVehicle() == null,
+                "walking away cancels terrain wait without moving mount");
+        player.snapTo(origin);
+        PendingMountTeleports.schedule(player, horse, origin);
+        horse.snapTo(origin.add(2, 0, 0));
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty() && player.getVehicle() == null,
+                "moved mount cancels terrain wait");
+        horse.snapTo(origin);
+        PendingMountTeleports.schedule(player, horse, origin);
+        TpWithMeConfig.get().enabled = false;
+        PendingMountTeleports.tick(server);
+        check(h, waiting.isEmpty() && player.getVehicle() == null,
+                "disabling mod cancels terrain wait");
+        TpWithMeConfig.get().enabled = true;
     }
 
     private static void configAndUpdates(GameTestHelper h) throws Exception {

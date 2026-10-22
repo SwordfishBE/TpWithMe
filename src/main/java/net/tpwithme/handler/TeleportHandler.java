@@ -33,6 +33,7 @@ import net.tpwithme.permission.PermissionManager;
 import net.tpwithme.util.SafetyChecker;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Central handler: captures the player's mount before a teleport and
@@ -129,7 +130,7 @@ public final class TeleportHandler {
 
         if (!canEnterDestination(player, vehicle, original.newLevel(), mountPos, OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL)) {
             player.sendSystemMessage(Component.literal(
-                    "[TpWithMe] Open Parties and Claims blocks mounted ender pearl entry into this claim."));
+                        "[TpWithMe] Destination access or passenger permissions block this mounted ender pearl teleport."));
             return teleportWithoutMount(player, original);
         }
 
@@ -188,7 +189,7 @@ public final class TeleportHandler {
 
         if (opacBlockedDestination) {
             player.sendSystemMessage(Component.literal(
-                    "[TpWithMe] Open Parties and Claims blocks mounted chorus fruit entry into the available destinations."));
+                    "[TpWithMe] Destination access or passenger permissions block mounted chorus fruit teleportation."));
         }
         return false;
     }
@@ -205,13 +206,17 @@ public final class TeleportHandler {
             return;
         }
 
-        // Safety check – done HERE after the player arrived so chunks are loaded.
+        // A player teleport can complete before its destination chunks are ready.
         // If the exact position is blocked, search nearby for a safe spot.
         Vec3 mountPos = targetPos;
         if (TpWithMeConfig.get().checkSafety) {
             int radius = TpWithMeConfig.get().safetySearchRadius;
             mountPos = SafetyChecker.findSafePosition(vehicle, targetLevel, targetPos, radius);
             if (mountPos == null) {
+                if (!SafetyChecker.areSearchChunksLoaded(vehicle, targetLevel, targetPos, radius)) {
+                    PendingMountTeleports.schedule(player, vehicle, targetPos);
+                    return;
+                }
                 player.sendSystemMessage(Component.literal(
                         "[TpWithMe] Not enough space at destination – your mount stayed behind."));
                 return;
@@ -224,7 +229,7 @@ public final class TeleportHandler {
 
         if (!canEnterDestination(player, vehicle, targetLevel, mountPos, OpenPartiesAndClaimsCompat.TeleportType.GENERAL)) {
             player.sendSystemMessage(Component.literal(
-                    "[TpWithMe] Open Parties and Claims blocks your mount from entering this claim."));
+                    "[TpWithMe] Destination access or passenger permissions block your mount from teleporting."));
             return;
         }
 
@@ -374,63 +379,81 @@ public final class TeleportHandler {
         return mountPos;
     }
 
-    private static Entity getEligibleVehicle(ServerPlayer player, ServerLevel targetLevel) {
-        if (!TpWithMeConfig.get().enabled) return null;
+    public static boolean canResumeTeleport(ServerPlayer player, Entity vehicle, ServerLevel targetLevel) {
+        return player.getVehicle() == null && isEligibleVehicle(player, vehicle, targetLevel);
+    }
 
+    private static Entity getEligibleVehicle(ServerPlayer player, ServerLevel targetLevel) {
         Entity vehicle = player.getVehicle();
-        if (vehicle == null) return null;
-        if (currentlyTeleporting.contains(vehicle.getUUID())) return null;
-        if (!isSupportedType(vehicle)) return null;
+        return vehicle != null && isEligibleVehicle(player, vehicle, targetLevel) ? vehicle : null;
+    }
+
+    private static boolean isEligibleVehicle(ServerPlayer player, Entity vehicle, ServerLevel targetLevel) {
+        if (!TpWithMeConfig.get().enabled || !vehicle.isAlive() || vehicle.isRemoved()) return false;
+        if (currentlyTeleporting.contains(vehicle.getUUID())) return false;
+        if (!isSupportedType(vehicle)) return false;
 
         if (isBlacklisted(vehicle)) {
             TpWithMe.LOGGER.debug("{} {} is blacklisted; skipping.",
                     TpWithMe.prefix(),
                     vehicle.getType().toShortString());
-            return null;
+            return false;
         }
 
         if (TpWithMeConfig.get().requireSaddle && !hasSaddle(vehicle)) {
             TpWithMe.LOGGER.debug("{} {} has no saddle; skipping.",
                     TpWithMe.prefix(),
                     vehicle.getType().toShortString());
-            return null;
+            return false;
         }
 
         if (!PermissionManager.canUse(player)) {
             TpWithMe.LOGGER.debug("{} {} lacks permission {}; skipping.",
                     TpWithMe.prefix(),
                     player.getName().getString(), PermissionManager.USE_PERMISSION);
-            return null;
+            return false;
         }
 
         boolean crossDim = vehicle.level() != targetLevel;
         if (crossDim && !TpWithMeConfig.get().crossDimensionalTeleport) {
             player.sendSystemMessage(Component.literal(
                     "[TpWithMe] Cross-dimensional mount teleport is disabled in the config."));
-            return null;
+            return false;
         }
         if (crossDim && !PermissionManager.canCrossDimensionalTeleport(player)) {
             player.sendSystemMessage(Component.literal(
                     "[TpWithMe] You don't have permission to take your mount across dimensions."));
-            return null;
+            return false;
         }
 
-        return vehicle;
+        return true;
     }
 
     public static boolean canRecoverMount(ServerPlayer player, Entity vehicle,
                                           OpenPartiesAndClaimsCompat.TeleportType type, boolean crossDimensional) {
         var config = TpWithMeConfig.get();
-        if (!config.enabled || !PermissionManager.canUse(player) || !vehicle.isAlive() || vehicle.isRemoved()
+        if (!canCarryPlayer(player, type, crossDimensional) || !vehicle.isAlive() || vehicle.isRemoved()
                 || !isSupportedType(vehicle) || isBlacklisted(vehicle)
                 || (config.requireSaddle && !hasSaddle(vehicle))) return false;
+        return canEnterDestination(player, vehicle, player.level(), vehicle.position(), type)
+                && (!config.checkSafety || SafetyChecker.isSafe(vehicle, player.level(), vehicle.position()));
+    }
+
+    public static Set<UUID> getOtherPassengerIds(Entity vehicle, UUID playerId) {
+        return vehicle.getSelfAndPassengers()
+                .filter(entity -> entity != vehicle && !entity.getUUID().equals(playerId))
+                .map(Entity::getUUID).collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static boolean canCarryPlayer(ServerPlayer player,
+                                          OpenPartiesAndClaimsCompat.TeleportType type, boolean crossDimensional) {
+        var config = TpWithMeConfig.get();
+        if (!config.enabled || !player.isAlive() || player.isRemoved() || !PermissionManager.canUse(player)) return false;
         if (crossDimensional && (!config.crossDimensionalTeleport || !PermissionManager.canCrossDimensionalTeleport(player))) return false;
         if (type == OpenPartiesAndClaimsCompat.TeleportType.ENDER_PEARL
                 && (!config.enderPearlTeleport || !PermissionManager.canEnderPearlTeleport(player))) return false;
-        if (type == OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT
-                && (!config.chorusFruitTeleport || !PermissionManager.canChorusFruitTeleport(player))) return false;
-        return canEnterDestination(player, vehicle, player.level(), vehicle.position(), type)
-                && (!config.checkSafety || SafetyChecker.isSafe(vehicle, player.level(), vehicle.position()));
+        return type != OpenPartiesAndClaimsCompat.TeleportType.CHORUS_FRUIT
+                || (config.chorusFruitTeleport && PermissionManager.canChorusFruitTeleport(player));
     }
 
     private static boolean canEnterDestination(
@@ -441,12 +464,24 @@ public final class TeleportHandler {
             OpenPartiesAndClaimsCompat.TeleportType teleportType
     ) {
         if (!SafetyChecker.isWithinBounds(vehicle, level, pos)) return false;
+        List<ServerPlayer> riders = new ArrayList<>();
+        riders.add(player);
+        for (Entity passenger : vehicle.getIndirectPassengers()) {
+            if (passenger instanceof ServerPlayer rider && !rider.getUUID().equals(player.getUUID())) riders.add(rider);
+        }
+        boolean crossDimensional = vehicle.level() != level;
+        for (ServerPlayer rider : riders) {
+            if (!canCarryPlayer(rider, teleportType, crossDimensional)) return false;
+        }
         if (!TpWithMeConfig.get().respectOpenPartiesAndClaims) return true;
         AABB box = vehicle.getDimensions(Pose.STANDING).makeBoundingBox(pos);
         // A large mount can overlap claims even when its center is outside them.
         for (int x = Mth.floor(box.minX) >> 4; x <= (Mth.floor(Math.nextDown(box.maxX)) >> 4); x++) {
             for (int z = Mth.floor(box.minZ) >> 4; z <= (Mth.floor(Math.nextDown(box.maxZ)) >> 4); z++) {
-                if (!OpenPartiesAndClaimsCompat.canTeleportInto(level, new BlockPos(x << 4, Mth.floor(pos.y), z << 4), player, teleportType)) return false;
+                BlockPos chunkPos = new BlockPos(x << 4, Mth.floor(pos.y), z << 4);
+                for (ServerPlayer rider : riders) {
+                    if (!OpenPartiesAndClaimsCompat.canTeleportInto(level, chunkPos, rider, teleportType)) return false;
+                }
             }
         }
         return true;

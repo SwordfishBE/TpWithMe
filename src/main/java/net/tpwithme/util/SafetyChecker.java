@@ -52,7 +52,7 @@ public final class SafetyChecker {
             for (int dz = -searchRadius; dz <= searchRadius; dz++) {
                 double x = targetPos.x + dx, z = targetPos.z + dz;
                 int blockX = Mth.floor(x), blockZ = Mth.floor(z);
-                if (!level.hasChunk(blockX >> 4, blockZ >> 4)) continue;
+                if (level.getChunkSource().getChunkNow(blockX >> 4, blockZ >> 4) == null) continue;
                 // Keep free-space candidates for flying and aquatic mounts.
                 for (int dy = -searchRadius; dy <= searchRadius; dy++) {
                     candidates.add(new Vec3(x, targetPos.y + dy, z));
@@ -86,6 +86,18 @@ public final class SafetyChecker {
                 .findFirst().orElse(null);
     }
 
+    public static boolean areSearchChunksLoaded(Entity vehicle, ServerLevel level, Vec3 pos, int radius) {
+        if (!isWithinBounds(vehicle, level, pos)) return true;
+        radius = Math.clamp(radius, 0, TpWithMeConfig.MAX_SAFETY_SEARCH_RADIUS);
+        AABB area = clearanceBox(vehicle, pos).inflate(radius, 0, radius);
+        for (int x = Mth.floor(area.minX) >> 4; x <= (Mth.floor(Math.nextDown(area.maxX)) >> 4); x++) {
+            for (int z = Mth.floor(area.minZ) >> 4; z <= (Mth.floor(Math.nextDown(area.maxZ)) >> 4); z++) {
+                if (level.getChunkSource().getChunkNow(x, z) == null) return false;
+            }
+        }
+        return true;
+    }
+
     public static boolean isSafe(Entity vehicle, ServerLevel level, Vec3 pos) {
         if (!isWithinBounds(vehicle, level, pos)) return false;
         AABB body = clearanceBox(vehicle, pos).deflate(1.0E-7);
@@ -95,7 +107,7 @@ public final class SafetyChecker {
         // Searching must not synchronously load/generate chunks on the server thread.
         for (int x = minX >> 4; x <= (maxX >> 4); x++) {
             for (int z = minZ >> 4; z <= (maxZ >> 4); z++) {
-                if (!level.hasChunk(x, z)) return false;
+                if (level.getChunkSource().getChunkNow(x, z) == null) return false;
             }
         }
         boolean supported = vehicle instanceof HappyGhast;
@@ -114,8 +126,9 @@ public final class SafetyChecker {
                         double surface = y + fluid.getHeight(level, block);
                         boolean lavaSurface = vehicle instanceof Strider && fluid.is(FluidTags.LAVA)
                                 && pos.y >= surface - 1.0E-6 && pos.y - surface <= 0.125;
-                        if (!waterMount && !lavaSurface && (inBody || underFeet)) return false;
-                        if (waterMount || lavaSurface) supported = true;
+                        boolean touchesBody = new AABB(x, y, z, x + 1, surface, z + 1).intersects(body);
+                        if (!waterMount && !lavaSurface && touchesBody) return false;
+                        if ((waterMount && touchesBody) || lavaSurface) supported = true;
                     }
                     if ((inBody || underFeet) && isHazardous(state)) return false;
                     for (AABB shape : state.getCollisionShape(level, block, context).toAabbs()) {

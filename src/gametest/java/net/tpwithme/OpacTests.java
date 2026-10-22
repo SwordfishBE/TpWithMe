@@ -10,6 +10,7 @@ import net.tpwithme.compat.OpenPartiesAndClaimsCompat;
 import net.tpwithme.compat.OpenPartiesAndClaimsCompat.TeleportType;
 import net.tpwithme.config.TpWithMeConfig;
 import net.tpwithme.handler.TeleportHandler;
+import net.tpwithme.handler.PendingMountTeleports;
 import xaero.pac.common.server.api.OpenPACServerAPI;
 import xaero.pac.common.server.player.config.api.v2.IPlayerConfigOptionSpecAPI;
 import xaero.pac.common.server.player.config.api.v2.PlayerConfigOptions;
@@ -56,6 +57,11 @@ final class OpacTests {
             player.teleport(transition(player, destination.add(0, 0.37, 0)));
             check(h, player.getVehicle() == null && horse.position().equals(oldHorsePos),
                     "OPAC denies general teleport carry after safe-ground adjustment");
+            player.snapTo(destination);
+            PendingMountTeleports.schedule(player, horse, destination);
+            PendingMountTeleports.tick(h.getLevel().getServer());
+            check(h, player.getVehicle() == null && horse.position().equals(oldHorsePos),
+                    "deferred mount teleport rechecks OPAC and denies visitor");
             mount(player, horse);
             TeleportHandler.handleMountedPearlTeleport(player, transition(player, destination));
             check(h, player.getVehicle() == null && horse.position().equals(oldHorsePos), "OPAC-denied mounted pearl keeps mount behind");
@@ -100,6 +106,11 @@ final class OpacTests {
             player.teleport(transition(player, destination.add(0, 0.37, 0)));
             check(h, player.getVehicle() == horse && horse.position().distanceToSqr(destination) < 0.01,
                     "OPAC owner general teleport carries mount to corrected ground");
+            player.stopRiding();
+            player.snapTo(destination);
+            PendingMountTeleports.schedule(player, horse, destination);
+            PendingMountTeleports.tick(h.getLevel().getServer());
+            check(h, player.getVehicle() == horse, "deferred mount teleport allows OPAC owner");
 
             // Fault injection exercises the same catch path as an incompatible reflective API.
             check(h, !OpenPartiesAndClaimsCompat.canTeleportInto(null, pos, player, TeleportType.GENERAL), "OPAC integration failure denies carry");
