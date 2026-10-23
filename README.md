@@ -20,6 +20,7 @@ Your mount follows you through every teleport — commands, plugins, portals, yo
 - 🔁 Post-teleport remount watcher — catches edge-case dismounts and fixes them automatically
 - 🧩 Optional Open Parties and Claims support — respects claim access, chorus fruit rules, and ender pearl barrier groups
 - ⚙️ Optional Mod Menu + Cloth Config support for an in-game client config screen
+- 🔄 Supports Moonrise, C2ME and Async
 
 ---
 
@@ -114,12 +115,15 @@ Default: `true`
 Allow chorus fruit to take your mount along.  
 Grounding uses actual collision surfaces, including slabs, and respects Minecraft's `consumable_does_not_teleport_to` block tag (including datapack additions).
 When `false`, mounted chorus fruit uses vanilla behaviour and only teleports the player.  
+A successful vanilla chorus teleport cancels older mount-transfer waits and remount recovery; a failed attempt leaves them intact.
 Default: `true`
 
 #### `respectOpenPartiesAndClaims`
 Respect [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-claims) claim protection when it is installed.
 
 TpWithMe checks claim access before moving the mount into a claim. For mounted chorus fruit it respects OPAC's chorus fruit exception option. For mounted ender pearls it respects OPAC's configured Ender Pearls entity barrier group when present.
+
+Every player riding the mount must have the required TpWithMe permissions and destination access. If any rider is denied, the mount and its remaining passengers stay behind. This applies to general teleports, pearls, chorus fruit and transfers that wait for terrain.
 
 Disable this only if you deliberately want TpWithMe to ignore OPAC claim protection.
 If OPAC is installed but its API fails, mount carry is blocked until the server restarts or this setting is explicitly disabled. The mod does not silently allow protected destinations.
@@ -138,6 +142,13 @@ Before teleporting, check whether there is enough room at the destination for th
 If the space is too small, the mount stays behind and a message is sent to the player.
 
 Uses actual collision-shape intersections and checks the entire mount footprint against the world border. Nearby searching does not load new chunks. Flying mounts do not require ground; nautilus mounts can land in water and striders on lava surfaces.  
+For general teleports (such as `/home`), missing destination terrain is not treated as blocked space. The mount can follow once the terrain becomes available, for up to 100 server ticks (5 seconds at 20 TPS). A new teleport can carry a still-valid waiting mount to the latest destination, including a quick B-A-B return. Safety, permissions and OPAC are checked again. Moving away, a moved mount, changed passengers, an expired wait or disconnect cancels the pending transfer.
+
+An already loaded safe alternative can be used without waiting for the entire search area. While terrain is incomplete, the bounded search retries every five ticks. Existing co-riders are tracked by UUID; a passenger change cancels the waiting transfer. Waterlogged support blocks are allowed when their solid surface keeps the mount above the water; submerged destinations remain restricted.
+
+A loaded mount in a temporarily hidden entity section can still follow. If the source mount cannot currently be found, the bounded wait remains active instead of immediately reporting that it moved. Each successful follow-up general teleport starts its own 100-tick destination wait, so returning to A does not inherit B's nearly expired timeout. Ordinary retries do not reset the timer. Source chunks are never loaded by this lookup.
+
+An eligible mount's already loaded source chunk is briefly retained with a radius-zero, nonpersistent ticket before the player moves. The ticket expires automatically after 120 ticks (6 seconds at 20 TPS), preventing rapid returns from losing their source entity without leaving chunks permanently loaded. Unloaded source chunks do not receive this ticket; safety searches still do not generate destination terrain.
 Default: `true`
 
 #### `applyTeleportProtection`
@@ -221,26 +232,19 @@ group.vip:
 
 ---
 
-## 🔨 How It Works
-
-TpWithMe wraps `ServerPlayer#teleport(TeleportTransition)` with MixinExtras:
-
-1. Before the player teleports, the current vehicle is captured locally and eligibility is checked (saddle, blacklist, LuckPerms permission, cross-dim flag). No entity is kept in a static pending-teleport map.
-2. The player teleports normally (Minecraft handles dismounting and moving the player).
-3. After success, the resolved player position and dimension are used, including relative teleports. Safety and claim checks run before moving and remounting the vehicle. A nested teleport supersedes the older capture.
-4. **RemountWatcher** checks after 3 ticks. It only attempts a nearby remount at the existing vehicle position after rechecking rules; it never teleports the vehicle. A new teleport, different mount, sneaking, disconnect, or server stop cancels recovery. Pending checks store IDs and positions, not players or worlds.
-
----
-
 ## 🧑‍🤝‍🧑 Compatibility
+
+This mod works with Moonrise, C2ME and Async
+Some of these mods cannot be loaded together.
 
 | Mod | Status |
 |-----|--------|
 | [Essential Commands](https://modrinth.com/mod/essential-commands) | ✅ Compatible |
 | [Fabric Essentials](https://modrinth.com/mod/melius-essentials) | ✅ Compatible |
+| [Moonrise](https://modrinth.com/mod/moonrise-opt) | ✅ Compatible |
+| [C2ME](https://modrinth.com/mod/c2me-fabric) | ✅ Compatible |
+| [Async](https://modrinth.com/mod/async) | ✅ Compatible |
 | [Leashed Teleport](https://github.com/SwordfishBE/LeashedTeleport) | ✅ Compatible |
-| [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-claims) | ✅ Optional support |
-
 
 ### Other mods
 If another mod forcibly dismounts the player before TpWithMe captures the vehicle, the mount cannot be recovered. Please open an issue if you encounter a conflict.
@@ -274,12 +278,6 @@ chmod +x gradlew
 ./gradlew build
 # Output: build/libs/tpwithme-<version>.jar
 ```
-
-**Requirements:** JAVA JDK 25, Gradle 9.7.1 (included wrapper)
-
-### Regression Tests
-
-`./gradlew build` runs the server GameTests without OPAC. Use `./gradlew runGameTest -PtestOpac` for the same suite with real OPAC 0.33.0 and Forge Config API Port 26.3.1. These are test-only dependencies and are not bundled with TpWithMe. See [REVIEW.md](REVIEW.md) for coverage and limitations.
 
 ---
 

@@ -10,6 +10,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.compat.OpenPartiesAndClaimsCompat.TeleportType;
+import net.tpwithme.util.LoadedMountLookup;
 
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +72,7 @@ public final class RemountWatcher {
             if (server.getTickCount() < check.dueTick()) continue;
             pending.remove(playerId);
             if (player.getVehicle() != null) continue;
-            Entity vehicle = player.level().getEntity(check.vehicleId());
+            Entity vehicle = LoadedMountLookup.find(player.level(), check.vehicleId(), check.vehiclePos());
             if (vehicle == null || !TeleportHandler.getOtherPassengerIds(vehicle, playerId).equals(check.passengerIds())
                     || vehicle.position().distanceToSqr(check.vehiclePos()) > 1.0
                     || player.position().distanceToSqr(check.playerPos()) > 4.0

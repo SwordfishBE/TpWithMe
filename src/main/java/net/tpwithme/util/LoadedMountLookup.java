@@ -1,5 +1,6 @@
 package net.tpwithme.util;
 
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -7,6 +8,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.mixin.PersistentEntitySectionManagerAccessor;
 import net.tpwithme.mixin.ServerLevelEntityManagerAccessor;
+import net.tpwithme.mixin.MoonriseEntityLookupAccessor;
 
 import java.util.UUID;
 
@@ -18,8 +20,15 @@ public final class LoadedMountLookup {
         if (level == null) return null;
         Entity visible = level.getEntity(id);
         if (visible != null) return visible;
-        var manager = ((ServerLevelEntityManagerAccessor) level).tpwithme$getEntityManager();
+        if (!(level instanceof ServerLevelEntityManagerAccessor accessor)) return null;
+        if (FabricLoader.getInstance().isModLoaded("moonrise")
+                && accessor.tpwithme$getEntityGetter() instanceof MoonriseEntityLookupAccessor moonrise) {
+            return moonrise.tpwithme$getLoadedEntitiesByUUID().get(id);
+        }
+        var manager = accessor.tpwithme$getEntityManager();
+        if (manager == null) return null;
         var sections = ((PersistentEntitySectionManagerAccessor) manager).tpwithme$getSectionStorage();
+        if (sections == null) return null;
         // Pending transfers already reject movement beyond one block: inspect at most eight sections.
         for (int x = Mth.floor(lastPosition.x - 1) >> 4; x <= Mth.floor(lastPosition.x + 1) >> 4; x++) {
             for (int y = Mth.floor(lastPosition.y - 1) >> 4; y <= Mth.floor(lastPosition.y + 1) >> 4; y++) {

@@ -26,6 +26,7 @@ public class TpWithMe implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        net.tpwithme.util.MountSourceChunkGuard.register();
         TpWithMeConfig.load();
         PermissionManager.refreshState();
 

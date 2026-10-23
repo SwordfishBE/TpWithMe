@@ -4,12 +4,16 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.tpwithme.config.TpWithMeConfig;
+import net.tpwithme.TpWithMe;
 import net.tpwithme.util.SafetyChecker;
 import net.tpwithme.util.LoadedMountLookup;
+import net.tpwithme.util.MountSourceChunkGuard;
 
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +32,7 @@ public final class PendingMountTeleports {
     private PendingMountTeleports() {}
 
     public static void schedule(ServerPlayer player, Entity vehicle, Vec3 targetPos) {
+        MountSourceChunkGuard.keepLoaded(vehicle);
         pending.put(player.getUUID(), new Pending(vehicle.getUUID(), vehicle.level().dimension(),
                 player.level().dimension(), vehicle.position(), targetPos,
                 TeleportHandler.getOtherPassengerIds(vehicle, player.getUUID()),
@@ -69,7 +74,8 @@ public final class PendingMountTeleports {
         Pending request = pending.get(player.getUUID());
         if (request == null) return;
         pending.put(player.getUUID(), new Pending(request.vehicleId(), request.sourceDimension(),
-                player.level().dimension(), request.sourcePos(), player.position(), request.passengerIds(), request.deadline()));
+                player.level().dimension(), request.sourcePos(), player.position(), request.passengerIds(),
+                player.level().getServer().getTickCount() + TIMEOUT_TICKS));
     }
 
     public static void clear() {
@@ -92,6 +98,10 @@ public final class PendingMountTeleports {
             var source = server.getLevel(request.sourceDimension());
             if (server.getTickCount() >= request.deadline()) {
                 pending.remove(playerId);
+                TpWithMe.LOGGER.warn("Mount transfer timed out for {}: mount={}, source={} {}, target={} {}, sourceReadable={}, targetReadable={}, mountAvailable={}",
+                        player.getName().getString(), request.vehicleId(), request.sourceDimension().identifier(), request.sourcePos(),
+                        request.targetDimension().identifier(), request.targetPos(), readable(source, request.sourcePos()),
+                        readable(player.level(), request.targetPos()), LoadedMountLookup.find(source, request.vehicleId(), request.sourcePos()) != null);
                 player.sendSystemMessage(Component.literal(
                         "[TpWithMe] Mount transfer timed out while waiting for terrain or your mount to become available."));
                 continue;
@@ -124,5 +134,9 @@ public final class PendingMountTeleports {
                 TeleportHandler.onPostTeleport(player, vehicle, player.level(), request.targetPos());
             }
         }
+    }
+
+    private static boolean readable(ServerLevel level, Vec3 position) {
+        return level != null && level.getChunkSource().getChunkNow(Mth.floor(position.x) >> 4, Mth.floor(position.z) >> 4) != null;
     }
 }

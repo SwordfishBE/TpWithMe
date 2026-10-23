@@ -6,6 +6,7 @@
   "mixins": [
     "EntityTeleportMixin",
     "ServerLevelEntityManagerAccessor",
+    "MoonriseEntityLookupAccessor",
     "PersistentEntitySectionManagerAccessor",
     "ThrownEnderpearlMixin",
     "TeleportRandomlyConsumeEffectMixin"

@@ -8,6 +8,7 @@ import net.minecraft.world.level.portal.TeleportTransition;
 import net.tpwithme.handler.RemountWatcher;
 import net.tpwithme.handler.TeleportHandler;
 import net.tpwithme.handler.PendingMountTeleports;
+import net.tpwithme.util.MountSourceChunkGuard;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -26,6 +27,7 @@ public class EntityTeleportMixin {
         boolean waiting = vehicle == null && PendingMountTeleports.isWaitingForMount(player);
         if (waiting) RemountWatcher.cancelRecovery(player.getUUID());
         else RemountWatcher.cancel(player.getUUID());
+        if (vehicle != null) MountSourceChunkGuard.keepLoaded(vehicle);
         boolean completed = false;
         try {
             ServerPlayer returned = original.call(transition);

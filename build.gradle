@@ -3,6 +3,14 @@ plugins {
     id 'maven-publish'
 }
 
+if (providers.gradleProperty('testC2me').isPresent() && providers.gradleProperty('testMoonrise').isPresent()) {
+    throw new GradleException('C2ME and Moonrise are incompatible; run their compatibility tests separately.')
+}
+if (providers.gradleProperty('testAsync').isPresent()
+        && (providers.gradleProperty('testMoonrise').isPresent() || providers.gradleProperty('testOpac').isPresent())) {
+    throw new GradleException('Async is incompatible with Moonrise and OPAC; run these compatibility tests separately.')
+}
+
 version = project.mod_version
 group = project.maven_group
 
@@ -49,6 +57,12 @@ dependencies {
     }
     if (providers.gradleProperty('testC2me').isPresent()) {
         gametestRuntimeOnly "maven.modrinth:c2me-fabric:gKKkuSYc"
+    }
+    if (providers.gradleProperty('testMoonrise').isPresent()) {
+        gametestRuntimeOnly "maven.modrinth:moonrise-opt:1z5ctm95"
+    }
+    if (providers.gradleProperty('testAsync').isPresent()) {
+        gametestRuntimeOnly "maven.modrinth:async:gcduhoHv"
     }
     if (providers.gradleProperty('testLeashedTeleportJar').isPresent()) {
         gametestRuntimeOnly files(providers.gradleProperty('testLeashedTeleportJar').get())

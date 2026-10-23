@@ -55,7 +55,7 @@ public final class SafetyChecker {
                 if (level.getChunkSource().getChunkNow(blockX >> 4, blockZ >> 4) == null) continue;
                 // Keep free-space candidates for flying and aquatic mounts.
                 for (int dy = -searchRadius; dy <= searchRadius; dy++) {
-                    candidates.add(new Vec3(x, targetPos.y + dy, z));
+                    addHorizontalCandidates(candidates, targetPos, x, targetPos.y + dy, z, searchRadius);
                 }
                 // Pearl impact heights are fractional: integer offsets alone never reach the floor.
                 for (int y = minY; y <= maxY; y++) {
@@ -64,14 +64,14 @@ public final class SafetyChecker {
                     for (AABB shape : state.getCollisionShape(level, block, context).toAabbs()) {
                         double surface = y + shape.maxY;
                         if (Math.abs(surface - targetPos.y) <= searchRadius) {
-                            candidates.add(new Vec3(x, surface, z));
+                            addHorizontalCandidates(candidates, targetPos, x, surface, z, searchRadius);
                         }
                     }
                     var fluid = state.getFluidState();
                     if (vehicle instanceof Strider && fluid.is(FluidTags.LAVA)) {
                         double surface = y + fluid.getHeight(level, block);
                         if (Math.abs(surface - targetPos.y) <= searchRadius) {
-                            candidates.add(new Vec3(x, surface, z));
+                            addHorizontalCandidates(candidates, targetPos, x, surface, z, searchRadius);
                         }
                     }
                 }
@@ -84,6 +84,18 @@ public final class SafetyChecker {
                 .limit(MAX_CANDIDATES)
                 .filter(pos -> isSafe(vehicle, level, pos))
                 .findFirst().orElse(null);
+    }
+
+    private static void addHorizontalCandidates(Set<Vec3> candidates, Vec3 target,
+                                                double x, double y, double z, int radius) {
+        // Integer offsets alone keep the same wall-overlapping fractional position.
+        for (double px : new double[]{x, Mth.floor(x) + 0.5}) {
+            for (double pz : new double[]{z, Mth.floor(z) + 0.5}) {
+                if (Math.abs(px - target.x) <= radius && Math.abs(pz - target.z) <= radius) {
+                    candidates.add(new Vec3(px, y, pz));
+                }
+            }
+        }
     }
 
     public static boolean areSearchChunksLoaded(Entity vehicle, ServerLevel level, Vec3 pos, int radius) {
@@ -144,7 +156,7 @@ public final class SafetyChecker {
 
     private static boolean isHazardous(BlockState state) {
         return state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE) || state.is(Blocks.CACTUS)
-                || state.is(Blocks.SWEET_BERRY_BUSH) || state.is(Blocks.POWDER_SNOW)
+                || state.is(Blocks.SWEET_BERRY_BUSH) || state.is(Blocks.WITHER_ROSE) || state.is(Blocks.POWDER_SNOW)
                 || state.is(Blocks.CAMPFIRE) || state.is(Blocks.SOUL_CAMPFIRE)
                 || state.is(Blocks.MAGMA_BLOCK) || state.is(Blocks.LAVA_CAULDRON);
     }

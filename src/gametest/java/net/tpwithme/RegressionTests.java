@@ -35,7 +35,7 @@ public class RegressionTests {
     static String permissionDeniedNode;
     private static int assertions;
 
-    @GameTest(structure = "tpwithme-test:arena", maxTicks = 200)
+    @GameTest(structure = "tpwithme-test:arena", maxTicks = 400)
     public void regressions(GameTestHelper h) throws Exception {
         assertions = 0;
         var oldConfig = TpWithMeConfig.get();
@@ -61,6 +61,12 @@ public class RegressionTests {
                     ? (permission.equals(PermissionManager.USE_PERMISSION) ? TriState.TRUE : TriState.FALSE)
                     : TriState.DEFAULT;
         });
+        // Retain the local mock-client fixture before any remote teleport can queue its unload.
+        var recoveryBlock = h.absolutePos(new BlockPos(5, 1, 5));
+        var recoveryChunk = new net.minecraft.world.level.ChunkPos(recoveryBlock.getX() >> 4, recoveryBlock.getZ() >> 4);
+        h.getLevel().getChunkSource().updateChunkForced(recoveryChunk, true);
+        Runnable releaseRecoveryChunk = () -> h.getLevel().getChunkSource().updateChunkForced(recoveryChunk, false);
+        h.runBeforeTestEnd(releaseRecoveryChunk);
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) h.setBlock(x, 0, z, Blocks.STONE);
         ServerPlayer player = h.makeMockServerPlayerInLevel();
         h.runBeforeTestEnd(() -> h.getLevel().getServer().getPlayerList().remove(player));
@@ -133,6 +139,9 @@ public class RegressionTests {
         safety(h, horse, origin);
         coldDestination(h, player, horse, origin);
         configAndUpdates(h);
+        LeashedChorusCompatibilityTests.run(h);
+        LeashedPearlCompatibilityTests.run(h);
+        ReviewFollowupRegressionTests.run(h, player, horse, origin, target);
         CamelTeleportRegressionTests.run(h, player, origin, target);
         MountedTeleportRegressionTests.run(h, player, horse, origin, target);
         if (FabricLoader.getInstance().isModLoaded("openpartiesandclaims")) {
@@ -193,10 +202,13 @@ public class RegressionTests {
                         h.runAfterDelay(5, () -> {
                             check(h, player.getVehicle() == null && pending().isEmpty(), "intentional sneaking cancels recovery");
                             player.setShiftKeyDown(false);
+                            releaseRecoveryChunk.run();
                             ChunkUnloadCompatibilityTests.run(h);
-                            TpWithMe.LOGGER.info("TPWITHME REGRESSION ASSERTIONS PASSED: {} (OPAC={})", assertions,
-                                    FabricLoader.getInstance().isModLoaded("openpartiesandclaims"));
-                            h.succeed();
+                            AsyncCompatibilityTests.run(h, () -> RapidTeleportTimingTests.run(h, () -> {
+                                TpWithMe.LOGGER.info("TPWITHME REGRESSION ASSERTIONS PASSED: {} (OPAC={})", assertions,
+                                        FabricLoader.getInstance().isModLoaded("openpartiesandclaims"));
+                                h.succeed();
+                            }));
                         });
                     });
                 });
@@ -281,7 +293,7 @@ public class RegressionTests {
                 "new teleport preserves unresolved mount wait at latest destination");
         check(h, field(waiting.values().iterator().next().getClass(), "deadline")
                         .getInt(waiting.values().iterator().next()) == originalDeadline,
-                "retargeting unresolved mount does not extend original deadline");
+                "same-tick retarget keeps a full bounded destination wait");
         ((Map<java.util.UUID, Object>) waiting).put(player.getUUID(), constructor.newInstance(
                 missingId, level.dimension(), level.dimension(), origin, origin, Set.of(), server.getTickCount()));
         PendingMountTeleports.tick(server);
@@ -315,9 +327,7 @@ public class RegressionTests {
         player.stopRiding();
         player.snapTo(destination);
         // Hidden sections still contain loaded mounts but the public UUID lookup cannot see them.
-        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<Entity>)
-                field(net.minecraft.server.level.ServerLevel.class, "entityManager").get(level);
-        manager.updateChunkStatus(new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
+        EntityVisibilityTestSupport.setVisibility(level, new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
                 net.minecraft.world.level.entity.Visibility.HIDDEN);
         PendingMountTeleports.schedule(player, horse, destination);
         check(h, level.getEntity(horse.getUUID()) == null && !horse.isRemoved(),
@@ -331,7 +341,7 @@ public class RegressionTests {
         player.snapTo(destination);
         PendingMountTeleports.schedule(player, horse, destination);
         player.teleport(transition(player, origin));
-        manager.updateChunkStatus(new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
+        EntityVisibilityTestSupport.setVisibility(level, new net.minecraft.world.level.ChunkPos(chunk.getX() >> 4, chunk.getZ() >> 4),
                 net.minecraft.world.level.entity.Visibility.TICKING);
         check(h, waiting.isEmpty() && player.getVehicle() == horse,
                 "another teleport completes pending mount transfer at the latest loaded destination");
@@ -414,7 +424,7 @@ public class RegressionTests {
     }
 
     private static void otherTeleports(GameTestHelper h, ServerPlayer player, Entity horse,
-                                       TpWithMeConfig cfg, Vec3 origin, Vec3 target) {
+                                       TpWithMeConfig cfg, Vec3 origin, Vec3 target) throws Exception {
         horse.snapTo(origin);
         mount(player, horse);
         h.setBlock(15, 1, 5, Blocks.SHORT_GRASS);
@@ -422,6 +432,12 @@ public class RegressionTests {
         check(h, player.getVehicle() == horse && horse.position().distanceToSqr(target) < 0.01,
                 "command teleportTo path adjusts fractional destination through short grass");
         h.setBlock(15, 1, 5, Blocks.AIR);
+
+        horse.snapTo(origin);
+        mount(player, horse);
+        LeashedPearlCompatibilityTests.impact(h, player, target);
+        check(h, player.getVehicle() == horse && horse.position().distanceToSqr(target) < 0.01,
+                "real pearl impact preserves mounted teleport with or without LeashedTeleport");
 
         cfg.safetySearchRadius = 0;
         mount(player, horse);

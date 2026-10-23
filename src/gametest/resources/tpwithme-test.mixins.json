@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "net.tpwithme.testmixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": ["AsyncMobTickProbeMixin"],
+  "injectors": { "defaultRequire": 1 }
+}
