@@ -2,11 +2,11 @@
   "required": true,
   "minVersion": "0.8",
   "package": "net.tpwithme.mixin",
+  "plugin": "net.tpwithme.compat.TpWithMeMixinPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "EntityTeleportMixin",
     "ServerLevelEntityManagerAccessor",
-    "MoonriseEntityLookupAccessor",
     "PersistentEntitySectionManagerAccessor",
     "ThrownEnderpearlMixin",
     "TeleportRandomlyConsumeEffectMixin"

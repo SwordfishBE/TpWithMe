@@ -11,7 +11,7 @@ import net.minecraft.world.entity.Entity;
 public final class MountSourceChunkGuard {
     private static final TicketType SOURCE = Registry.register(BuiltInRegistries.TICKET_TYPE,
             Identifier.fromNamespaceAndPath("tpwithme", "mount_transfer_source"),
-            new TicketType(120L, TicketType.FLAG_LOADING));
+            new TicketType(120L, TicketType.FLAG_LOADING | TicketType.FLAG_CAN_EXPIRE_IF_UNLOADED));
 
     private MountSourceChunkGuard() {}
 

@@ -22,6 +22,10 @@ final class RapidTeleportTimingTests {
     static void run(GameTestHelper h, Runnable finished) {
         var level = h.getLevel();
         var server = level.getServer();
+        var sourceTicket = sourceTicketType();
+        check(h, sourceTicket.timeout() == 120 && sourceTicket.canExpireIfUnloaded()
+                        && sourceTicket.doesLoad() && !sourceTicket.doesSimulate() && !sourceTicket.persist(),
+                "source guard has a bounded nonpersistent timeout even while terrain is not ready");
         ServerPlayer player = h.makeMockServerPlayerInLevel();
         player.setNoGravity(true);
         var camel = h.spawn(EntityTypes.CAMEL, new Vec3(7.5, 1, 7.5));
@@ -142,7 +146,7 @@ final class RapidTeleportTimingTests {
         try {
             var storage = (net.minecraft.world.level.TicketStorage) field(net.minecraft.server.level.ChunkMap.class, "ticketStorage")
                     .get(h.getLevel().getChunkSource().chunkMap);
-            var type = (net.minecraft.server.level.TicketType) field(net.tpwithme.util.MountSourceChunkGuard.class, "SOURCE").get(null);
+            var type = sourceTicketType();
             var chunk = new net.minecraft.world.level.ChunkPos((int) Math.floor(pos.x) >> 4, (int) Math.floor(pos.z) >> 4);
             return storage.getTickets(chunk.pack()).stream().anyMatch(ticket -> ticket.getType() == type);
         } catch (Exception e) {
@@ -153,6 +157,14 @@ final class RapidTeleportTimingTests {
     private static Map<?, ?> waiting() {
         try { return (Map<?, ?>) field(PendingMountTeleports.class, "pending").get(null); }
         catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private static net.minecraft.server.level.TicketType sourceTicketType() {
+        try {
+            return (net.minecraft.server.level.TicketType) field(net.tpwithme.util.MountSourceChunkGuard.class, "SOURCE").get(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void home(ServerPlayer player, Vec3 target) {
