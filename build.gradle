@@ -11,6 +11,12 @@ if (providers.gradleProperty('testAsync').isPresent()
     throw new GradleException('Async is incompatible with Moonrise and OPAC; run these compatibility tests separately.')
 }
 
+for (String unavailable : ['testOpac', 'testEssentialCommands', 'testAsync']) {
+    if (providers.gradleProperty(unavailable).isPresent()) {
+        throw new GradleException("${unavailable} is not available for Minecraft ${project.minecraft_version}; do not load the old 26.3 test binaries.")
+    }
+}
+
 version = project.mod_version
 group = project.maven_group
 
@@ -52,24 +58,14 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
     include(implementation("me.lucko:fabric-permissions-api:0.7.0"))
     gametestCompileOnly "maven.modrinth:open-parties-and-claims:KBCCg0os"
-    if (providers.gradleProperty('testEssentialCommands').isPresent()) {
-        gametestRuntimeOnly "maven.modrinth:essential-commands:KANmt7ie"
-    }
     if (providers.gradleProperty('testC2me').isPresent()) {
-        gametestRuntimeOnly "maven.modrinth:c2me-fabric:gKKkuSYc"
+        gametestRuntimeOnly "maven.modrinth:c2me-fabric:bvOHPArP"
     }
     if (providers.gradleProperty('testMoonrise').isPresent()) {
-        gametestRuntimeOnly "maven.modrinth:moonrise-opt:1z5ctm95"
-    }
-    if (providers.gradleProperty('testAsync').isPresent()) {
-        gametestRuntimeOnly "maven.modrinth:async:gcduhoHv"
+        gametestRuntimeOnly "maven.modrinth:moonrise-opt:7QHz5gbK"
     }
     if (providers.gradleProperty('testLeashedTeleportJar').isPresent()) {
         gametestRuntimeOnly files(providers.gradleProperty('testLeashedTeleportJar').get())
-    }
-    if (providers.gradleProperty('testOpac').isPresent()) {
-        gametestRuntimeOnly "maven.modrinth:open-parties-and-claims:KBCCg0os"
-        gametestRuntimeOnly "maven.modrinth:forge-config-api-port:JpKvrr9J"
     }
     implementation "com.terraformersmc:modmenu:${project.modmenu_version}"
 
@@ -93,6 +89,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25

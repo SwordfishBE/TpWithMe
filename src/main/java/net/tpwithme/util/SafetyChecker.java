@@ -3,6 +3,7 @@ package net.tpwithme.util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
@@ -155,7 +156,8 @@ public final class SafetyChecker {
     }
 
     private static boolean isHazardous(BlockState state) {
-        return state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE) || state.is(Blocks.CACTUS)
+        return state.is(BlockTags.DANGEROUS_FOR_TELEPORTATION)
+                || state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE) || state.is(Blocks.CACTUS)
                 || state.is(Blocks.SWEET_BERRY_BUSH) || state.is(Blocks.WITHER_ROSE) || state.is(Blocks.POWDER_SNOW)
                 || state.is(Blocks.CAMPFIRE) || state.is(Blocks.SOUL_CAMPFIRE)
                 || state.is(Blocks.MAGMA_BLOCK) || state.is(Blocks.LAVA_CAULDRON);

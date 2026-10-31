@@ -139,6 +139,7 @@ public class RegressionTests {
         safety(h, horse, origin);
         coldDestination(h, player, horse, origin);
         configAndUpdates(h);
+        SnapshotRegressionTests.run(h, horse, origin);
         LeashedChorusCompatibilityTests.run(h);
         LeashedPearlCompatibilityTests.run(h);
         ReviewFollowupRegressionTests.run(h, player, horse, origin, target);

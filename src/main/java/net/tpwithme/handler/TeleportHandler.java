@@ -161,7 +161,7 @@ public final class TeleportHandler {
 
         for (int attempt = 0; attempt < 16; attempt++) {
             double x = player.getX() + (player.getRandom().nextDouble() - 0.5D) * diameter;
-            double y = Mth.clamp(
+            double y = Math.clamp(
                     player.getY() + (player.getRandom().nextDouble() - 0.5D) * diameter,
                     level.getMinY(),
                     level.getMinY() + level.getLogicalHeight() - 1
