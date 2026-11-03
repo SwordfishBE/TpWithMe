@@ -47,7 +47,7 @@ fabricApi {
         createSourceSet = true
         modId = 'tpwithme-test'
         enableGameTests = true
-        enableClientGameTests = false
+        enableClientGameTests = project.hasProperty('clientTests')
     }
 }
 
@@ -67,13 +67,35 @@ dependencies {
     if (providers.gradleProperty('testLeashedTeleportJar').isPresent()) {
         gametestRuntimeOnly files(providers.gradleProperty('testLeashedTeleportJar').get())
     }
-    implementation "com.terraformersmc:modmenu:${project.modmenu_version}"
+    clientCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+    clientRuntimeOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
-    compileOnly("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+    clientCompileOnly("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
         exclude group: "net.fabricmc.fabric-api"
     }
-    localRuntime("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
-        exclude group: "net.fabricmc.fabric-api"
+    if (!project.hasProperty('withoutCloth')) {
+        clientRuntimeOnly("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+            exclude group: "net.fabricmc.fabric-api"
+        }
+    }
+}
+
+if (project.hasProperty('clientTests')) {
+    sourceSets.gametest.java.srcDir('src/clientTest/java')
+    sourceSets.gametest.compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
+    sourceSets.gametest.runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
+}
+
+tasks.named('processGametestResources') {
+    inputs.property('clientTests', project.hasProperty('clientTests'))
+    if (project.hasProperty('clientTests')) {
+        doLast {
+            def metadataFile = new File(destinationDir, 'fabric.mod.json')
+            def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
+            metadata.environment = '*'
+            metadata.entrypoints['fabric-client-gametest'] = ['net.tpwithme.ClothConfigNoticeClientTest']
+            metadataFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata))
+        }
     }
 }
 
